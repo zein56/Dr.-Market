@@ -1,0 +1,646 @@
+import { Rng } from './rng';
+import {
+  ROWS as DEFAULT_ROWS, EMPTY, MATCH_LEN, cell, colorOf, kindOf, isVirus, isCapsule, isStone, isBomb, partnerDelta, toSingle, KIND_VIRUS, KIND_SINGLE, KIND_STONE, KIND_BOMB, KIND_LEFT, KIND_RIGHT, KIND_UP, KIND_DOWN, MAX_COLORS, hasLock, removeLock, addLock,
+  gravityFrames, LOCK_DELAY, CLEAR_ANIM_FRAMES, FALL_STEP_FRAMES, SPAWN_DELAY, DAS_DELAY, DAS_REPEAT, SOFT_DROP_FRAMES,
+  virusCount, virusTopRow
+} from './constants';
+import { Phase, Input, MatchConfig, Capsule, AttackInfo } from './sim';
+
+export interface CoopGameState {
+  cfg: MatchConfig;
+  playerCount: number;
+  cols: number;
+  rows: number; // dynamic board height
+  boardColsPerPlayer: number; // cols per player zone
+  board: Uint8Array;
+  frame: number;
+  phase: Phase;
+  rng: Rng;
+  
+  // Per-player states
+  capsules: (Capsule | null)[];
+  nextA: number[];
+  nextB: number[];
+  capsulesDropped: number[];
+  gravityTimers: number[];
+  lockTimers: number[];
+  softDrops: boolean[];
+  dasDirs: number[];
+  dasTimers: number[];
+  scores: number[];
+  missCounts: number[];
+  bombs: number[];
+  bombActives: boolean[];
+  spawningTimers: number[]; // Each player can spawn independently if the game isn't clearing
+  
+  phaseTimer: number; // Only used when phase = Clearing or Settling
+  clearing: number[];
+  chain: number;
+  maxChain: number;
+  virusesLeft: number;
+  totalVirusesCleared: number;
+  events: string[]; // shared events
+}
+
+// ---------------------------------------------------------
+// COOP BOARD UTILS
+// ---------------------------------------------------------
+
+export function idxCoop(x: number, y: number, cols: number): number {
+  return y * cols + x;
+}
+
+export function getCoop(b: Uint8Array, x: number, y: number, cols: number, rows: number): number {
+  if (x < 0 || x >= cols || y < 0 || y >= rows) return -1;
+  return b[idxCoop(x, y, cols)];
+}
+
+export function setCoop(b: Uint8Array, x: number, y: number, cols: number, v: number) {
+  b[idxCoop(x, y, cols)] = v;
+}
+
+export function countVirusesCoop(b: Uint8Array): number {
+  let n = 0;
+  for (let i = 0; i < b.length; i++) if (isVirus(b[i])) n++;
+  return n;
+}
+
+export function placeVirusesCoop(b: Uint8Array, level: number, rng: Rng, colors: number, cols: number, rows: number, playerCount: number) {
+  const rawTop = virusTopRow(level);
+  const topRatio = rawTop / 16;
+  const top = Math.max(1, Math.min(rows - 2, Math.floor(rows * topRatio)));
+  const availableSlots = (rows - top) * cols;
+  const maxViruses = Math.floor(availableSlots * 0.7);
+  const total = Math.min(virusCount(level) * playerCount, maxViruses);
+  let placed = 0;
+  let guard = 0;
+
+  while (placed < total && guard < 50000) {
+    guard++;
+    const y = top + rng.int(rows - top);
+    const x = rng.int(cols);
+    if (getCoop(b, x, y, cols, rows) !== EMPTY) continue;
+
+    const start = rng.int(colors);
+    let ok = false;
+    for (let i = 0; i < colors; i++) {
+      const color = (start + i) % colors;
+      if (!wouldMakeTripleCoop(b, x, y, color, cols, rows)) {
+        setCoop(b, x, y, cols, cell(KIND_VIRUS, color));
+        ok = true;
+        break;
+      }
+    }
+    if (ok) placed++;
+  }
+}
+
+function wouldMakeTripleCoop(b: Uint8Array, x: number, y: number, color: number, cols: number, rows: number): boolean {
+  const axes: [number, number][] = [[1, 0], [0, 1]];
+  for (const [dx, dy] of axes) {
+    let run = 1;
+    for (let s = 1; s <= 3; s++) {
+      const c = getCoop(b, x + dx * s, y + dy * s, cols, rows);
+      if (c > 0 && colorOf(c) === color) run++;
+      else break;
+    }
+    for (let s = 1; s <= 3; s++) {
+      const c = getCoop(b, x - dx * s, y - dy * s, cols, rows);
+      if (c > 0 && colorOf(c) === color) run++;
+      else break;
+    }
+    if (run >= 3) return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------
+// COOP ENGINE LOGIC
+// ---------------------------------------------------------
+
+export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?: number, boardRows?: number): CoopGameState {
+  const boardColsPerPlayer = Math.max(4, boardCols ?? 8);
+  const rows = Math.max(8, boardRows ?? DEFAULT_ROWS);
+  const cols = boardColsPerPlayer * playerCount;
+  const board = new Uint8Array(rows * cols);
+  const virusRng = new Rng(cfg.seed ^ 0x5bf03635);
+  placeVirusesCoop(board, cfg.level, virusRng, cfg.colors, cols, rows, playerCount);
+
+  const rng = new Rng(cfg.seed);
+  
+  const s: CoopGameState = {
+    cfg,
+    playerCount,
+    cols,
+    rows,
+    boardColsPerPlayer,
+    board,
+    frame: 0,
+    phase: Phase.Falling,
+    rng,
+    
+    capsules: Array(playerCount).fill(null),
+    nextA: Array(playerCount).fill(0).map(() => rng.int(cfg.colors)),
+    nextB: Array(playerCount).fill(0).map(() => rng.int(cfg.colors)),
+    capsulesDropped: Array(playerCount).fill(0),
+    gravityTimers: Array(playerCount).fill(0),
+    lockTimers: Array(playerCount).fill(0),
+    softDrops: Array(playerCount).fill(false),
+    dasDirs: Array(playerCount).fill(0),
+    dasTimers: Array(playerCount).fill(0),
+    scores: Array(playerCount).fill(0),
+    missCounts: Array(playerCount).fill(0),
+    bombs: Array(playerCount).fill(0),
+    bombActives: Array(playerCount).fill(false),
+    spawningTimers: Array(playerCount).fill(SPAWN_DELAY),
+    
+    phaseTimer: 0,
+    clearing: [],
+    chain: 0,
+    maxChain: 0,
+    virusesLeft: countVirusesCoop(board),
+    totalVirusesCleared: 0,
+    events: [],
+  };
+  
+  return s;
+}
+
+function capsuleCells(c: Capsule): [number, number, number, number] {
+  if (c.isBomb) return [c.x, c.y, c.x, c.y];
+  switch (c.rot & 3) {
+    case 0: return [c.x, c.y, c.x + 1, c.y];
+    case 1: return [c.x, c.y, c.x, c.y - 1];
+    case 2: return [c.x + 1, c.y, c.x, c.y];
+    default: return [c.x, c.y - 1, c.x, c.y];
+  }
+}
+
+// Check if fits in board AND doesn't collide with other falling capsules!
+function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): boolean {
+  const [x1, y1, x2, y2] = capsuleCells(c);
+  if (c.isBomb) {
+    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
+  } else {
+    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
+    if (x2 < 0 || x2 >= s.cols || y2 < 0 || y2 >= s.rows || getCoop(s.board, x2, y2, s.cols, s.rows) !== EMPTY) return false;
+  }
+  
+  // Collide with other falling capsules?
+  for (let p = 0; p < s.playerCount; p++) {
+    if (p === skipPlayerIndex) continue;
+    const oc = s.capsules[p];
+    if (oc) {
+      const [ox1, oy1, ox2, oy2] = capsuleCells(oc);
+      if (x1 === ox1 && y1 === oy1) return false;
+      if (!c.isBomb && x2 === ox1 && y2 === oy1) return false;
+      if (!oc.isBomb) {
+        if (x1 === ox2 && y1 === oy2) return false;
+        if (!c.isBomb && x2 === ox2 && y2 === oy2) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function lockCapsuleCoop(s: CoopGameState, p: number) {
+  const c = s.capsules[p];
+  if (!c) return;
+  const [x1, y1, x2, y2] = capsuleCells(c);
+
+  if (c.isBomb) {
+    setCoop(s.board, x1, y1, s.cols, cell(KIND_BOMB, 0));
+  } else {
+    const horizontal = y1 === y2;
+    if (horizontal) {
+      const leftFirst = x1 < x2;
+      setCoop(s.board, x1, y1, s.cols, cell(leftFirst ? KIND_LEFT : KIND_RIGHT, c.a));
+      setCoop(s.board, x2, y2, s.cols, cell(leftFirst ? KIND_RIGHT : KIND_LEFT, c.b));
+    } else {
+      const firstOnTop = y1 < y2;
+      setCoop(s.board, x1, y1, s.cols, cell(firstOnTop ? KIND_UP : KIND_DOWN, c.a));
+      setCoop(s.board, x2, y2, s.cols, cell(firstOnTop ? KIND_DOWN : KIND_UP, c.b));
+    }
+  }
+  
+  s.capsules[p] = null;
+  s.capsulesDropped[p]++;
+  s.events.push(`lock:p${p}`);
+}
+
+function spawnCoop(s: CoopGameState, p: number) {
+  let c: Capsule;
+  const spawnX = p * s.boardColsPerPlayer + Math.floor(s.boardColsPerPlayer / 2) - 1;
+  if (s.bombActives[p]) {
+    c = { x: spawnX, y: 0, rot: 0, a: 0, b: 0, isBomb: true };
+    s.bombActives[p] = false;
+  } else {
+    c = { x: spawnX, y: 0, rot: 0, a: s.nextA[p], b: s.nextB[p] };
+    s.nextA[p] = s.rng.int(s.cfg.colors);
+    s.nextB[p] = s.rng.int(s.cfg.colors);
+  }
+
+  if (!fitsCoop(s, c, p)) {
+    s.phase = Phase.Lost;
+    s.events.push('lost');
+    return;
+  }
+  s.capsules[p] = c;
+  s.gravityTimers[p] = 0;
+  s.lockTimers[p] = 0;
+  s.events.push(`spawn:p${p}`);
+}
+
+// ---------------------------------------------------------
+// MATCHING LOGIC
+// ---------------------------------------------------------
+function findMatchesCoop(b: Uint8Array, s: CoopGameState) {
+  const marked = new Set<number>();
+  let groups = 0;
+  const cols = s.cols;
+  const colors: number[] = [];
+  const matchesLengths: { len: number; color: number; center: number }[] = [];
+  let bombsEarned = 0;
+
+  const checkRun = (run: number, color: number, cells: number[]) => {
+    if (run >= MATCH_LEN) {
+      groups++;
+      colors.push(color);
+      for (const i of cells) marked.add(i);
+      matchesLengths.push({ len: run, color, center: cells[Math.floor(run / 2)] });
+    }
+  };
+
+  for (let y = 0; y < s.rows; y++) {
+    let run = 0; let color = -1; let cells: number[] = [];
+    for (let x = 0; x < cols; x++) {
+      const c = b[idxCoop(x, y, cols)];
+      if (c !== EMPTY && !isStone(c)) {
+        if (colorOf(c) === color) { run++; cells.push(idxCoop(x, y, cols)); }
+        else { checkRun(run, color, cells); color = colorOf(c); run = 1; cells = [idxCoop(x, y, cols)]; }
+      } else { checkRun(run, color, cells); color = -1; run = 0; cells = []; }
+    }
+    checkRun(run, color, cells);
+  }
+
+  for (let x = 0; x < cols; x++) {
+    let run = 0; let color = -1; let cells: number[] = [];
+    for (let y = 0; y < s.rows; y++) {
+      const c = b[idxCoop(x, y, cols)];
+      if (c !== EMPTY && !isStone(c)) {
+        if (colorOf(c) === color) { run++; cells.push(idxCoop(x, y, cols)); }
+        else { checkRun(run, color, cells); color = colorOf(c); run = 1; cells = [idxCoop(x, y, cols)]; }
+      } else { checkRun(run, color, cells); color = -1; run = 0; cells = []; }
+    }
+    checkRun(run, color, cells);
+  }
+
+  if (s.cfg.diagMatches) {
+    const diagonals = [{ dx: 1, dy: 1 }, { dx: 1, dy: -1 }];
+    for (const { dx, dy } of diagonals) {
+      for (let startY = 0; startY < s.rows; startY++) {
+        for (let startX = 0; startX < cols; startX++) {
+          const prevX = startX - dx; const prevY = startY - dy;
+          if (prevX >= 0 && prevX < cols && prevY >= 0 && prevY < s.rows) continue;
+          let run = 0; let color = -1; let cells: number[] = [];
+          let x = startX; let y = startY;
+          while (x >= 0 && x < cols && y >= 0 && y < s.rows) {
+            const c = b[idxCoop(x, y, cols)];
+            if (c !== EMPTY && !isStone(c)) {
+              if (colorOf(c) === color) { run++; cells.push(idxCoop(x, y, cols)); }
+              else { checkRun(run, color, cells); color = colorOf(c); run = 1; cells = [idxCoop(x, y, cols)]; }
+            } else { checkRun(run, color, cells); color = -1; run = 0; cells = []; }
+            x += dx; y += dy;
+          }
+          checkRun(run, color, cells);
+        }
+      }
+    }
+  }
+
+  const explosions: number[] = [];
+  const bombExplosions: number[] = [];
+  if (s.cfg.aoeEnabled) {
+    for (const match of matchesLengths) {
+      if (match.len >= (s.cfg.aoeThreshold ?? 5)) {
+        explosions.push(match.center);
+        const cx = match.center % cols; const cy = Math.floor(match.center / cols);
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const px = cx + dx; const py = cy + dy;
+            if (px >= 0 && px < cols && py >= 0 && py < s.rows) {
+              const i = idxCoop(px, py, cols);
+              if (isStone(b[i])) marked.add(i);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < s.rows * cols; i++) {
+    if (isBomb(b[i])) {
+      bombExplosions.push(i);
+      const cx = i % cols; const cy = Math.floor(i / cols);
+      const radius = Math.floor((s.cfg.bombThreshold ?? 5) / 2);
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const px = cx + dx; const py = cy + dy;
+          if (px >= 0 && px < cols && py >= 0 && py < s.rows) {
+            marked.add(idxCoop(px, py, cols));
+          }
+        }
+      }
+    }
+  }
+
+  if (s.cfg.bombEnabled) {
+    for (const match of matchesLengths) {
+      if (match.len >= (s.cfg.bombThreshold ?? 5)) bombsEarned++;
+    }
+  }
+
+  let virusesCleared = 0;
+  let stonesCleared = 0;
+  for (const i of marked) {
+    if (isVirus(b[i]) && !hasLock(b[i])) virusesCleared++;
+    if (isStone(b[i])) stonesCleared++;
+  }
+
+  return { cleared: [...marked].sort((a, b2) => a - b2), stonesCleared, virusesCleared, groups, colors, explosions, bombExplosions, matchesLengths, bombsEarned };
+}
+
+function applyClearCoop(b: Uint8Array, cleared: number[], cols: number, rows: number) {
+  for (const i of cleared) {
+    const c = b[i];
+    if (c === EMPTY) continue;
+    const d = partnerDelta(c);
+    if (d) {
+      const x = i % cols; const y = (i / cols) | 0;
+      const px = x + d[0]; const py = y + d[1];
+      const pc = getCoop(b, px, py, cols, rows);
+      if (pc > 0 && isCapsule(pc)) setCoop(b, px, py, cols, toSingle(pc));
+    }
+  }
+  for (const i of cleared) {
+    const c = b[i];
+    if (c === EMPTY) continue;
+    if (hasLock(c)) b[i] = removeLock(c);
+    else b[i] = EMPTY;
+  }
+}
+
+function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
+  const moved = new Uint8Array(rows * cols);
+  let any = false;
+
+  for (let y = rows - 2; y >= 0; y--) {
+    for (let x = 0; x < cols; x++) {
+      const i = idxCoop(x, y, cols);
+      const c = b[i];
+      if (c === EMPTY || moved[i]) continue;
+      if (kindOf(c) === KIND_VIRUS) continue;
+
+      const d = partnerDelta(c);
+      if (!d) {
+        if (getCoop(b, x, y + 1, cols, rows) === EMPTY) {
+          setCoop(b, x, y + 1, cols, c);
+          b[i] = EMPTY;
+          moved[idxCoop(x, y + 1, cols)] = 1;
+          any = true;
+        }
+      } else {
+        const px = x + d[0]; const py = y + d[1];
+        const pc = getCoop(b, px, py, cols, rows);
+        if (pc <= 0) {
+          setCoop(b, x, y, cols, toSingle(c));
+          any = true;
+          continue;
+        }
+        if (d[1] === 0) {
+          if (getCoop(b, x, y + 1, cols, rows) === EMPTY && getCoop(b, px, py + 1, cols, rows) === EMPTY) {
+            setCoop(b, x, y + 1, cols, c);
+            setCoop(b, px, py + 1, cols, pc);
+            b[i] = EMPTY; b[idxCoop(px, py, cols)] = EMPTY;
+            moved[idxCoop(x, y + 1, cols)] = 1; moved[idxCoop(px, py + 1, cols)] = 1;
+            any = true;
+          }
+        } else {
+          const lowY = Math.max(y, py);
+          const upY = Math.min(y, py);
+          if (getCoop(b, x, lowY + 1, cols, rows) === EMPTY) {
+            const lowC = b[idxCoop(x, lowY, cols)];
+            const upC = b[idxCoop(x, upY, cols)];
+            b[idxCoop(x, lowY, cols)] = EMPTY; b[idxCoop(x, upY, cols)] = EMPTY;
+            setCoop(b, x, lowY + 1, cols, lowC); setCoop(b, x, upY + 1, cols, upC);
+            moved[idxCoop(x, lowY + 1, cols)] = 1; moved[idxCoop(x, upY + 1, cols)] = 1;
+            any = true;
+          }
+        }
+      }
+    }
+  }
+  return any;
+}
+
+// ---------------------------------------------------------
+// STEP
+// ---------------------------------------------------------
+export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
+  s.events.length = 0;
+  if (s.phase === Phase.Won || s.phase === Phase.Lost) {
+    s.frame++;
+    return;
+  }
+
+  // --- Falling / Spawning state logic ---
+  if (s.phase === Phase.Falling) {
+    let anyLocked = false;
+    let lockingPlayers: number[] = [];
+
+    // Process each player
+    for (let p = 0; p < s.playerCount; p++) {
+      if (!s.capsules[p]) {
+        s.spawningTimers[p]--;
+        if (s.spawningTimers[p] <= 0) {
+          spawnCoop(s, p);
+        }
+        continue;
+      }
+
+      // Process inputs for falling capsules
+      for (const inp of inputsArr[p] || []) {
+        let dx = 0, dRot = 0;
+        switch (inp) {
+          case Input.Left: dx = -1; s.dasDirs[p] = -1; s.dasTimers[p] = DAS_DELAY; break;
+          case Input.Right: dx = 1; s.dasDirs[p] = 1; s.dasTimers[p] = DAS_DELAY; break;
+          case Input.RotateCW: dRot = 1; break;
+          case Input.RotateCCW: dRot = -1; break;
+          case Input.SoftDropOn: s.softDrops[p] = true; break;
+          case Input.SoftDropOff: s.softDrops[p] = false; s.dasDirs[p] = 0; break;
+          case Input.UseBomb:
+            if (s.cfg.bombEnabled && s.bombs[p] > 0 && !s.bombActives[p]) {
+              s.bombs[p]--;
+              s.bombActives[p] = true;
+              s.events.push(`bomb_activated:p${p}`);
+            }
+            break;
+          case Input.HardDrop:
+            while (true) {
+              const c = s.capsules[p]!;
+              const t = { ...c, y: c.y + 1 };
+              if (fitsCoop(s, t, p)) {
+                s.capsules[p] = t;
+                s.scores[p] += 1;
+              } else break;
+            }
+            lockCapsuleCoop(s, p);
+            anyLocked = true;
+            lockingPlayers.push(p);
+            break;
+        }
+
+        if (dx !== 0 && s.capsules[p]) {
+          const c = s.capsules[p]!;
+          const t = { ...c, x: c.x + dx };
+          if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`move:p${p}`); }
+        }
+
+        if (dRot !== 0 && s.capsules[p]) {
+          const c = s.capsules[p]!;
+          const nrot = (c.rot + (dRot > 0 ? 1 : 3)) & 3;
+          const candidates = [{ ...c, rot: nrot }, { ...c, rot: nrot, x: c.x - 1 }, { ...c, rot: nrot, x: c.x + 1 }, { ...c, rot: nrot, y: c.y + 1 }];
+          for (const t of candidates) {
+            if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`rotate:p${p}`); break; }
+          }
+        }
+      }
+
+      // DAS handling
+      if (s.dasDirs[p] !== 0 && s.capsules[p]) {
+        s.dasTimers[p]--;
+        if (s.dasTimers[p] <= 0) {
+          const c = s.capsules[p]!;
+          const t = { ...c, x: c.x + s.dasDirs[p] };
+          if (fitsCoop(s, t, p)) { s.capsules[p] = t; }
+          s.dasTimers[p] = DAS_REPEAT;
+        }
+      }
+
+      // Gravity Handling
+      if (s.capsules[p]) {
+        s.gravityTimers[p]++;
+        const baseNeed = gravityFrames(s.cfg.speed, s.capsulesDropped[p]);
+        const need = s.softDrops[p] ? SOFT_DROP_FRAMES : baseNeed;
+
+        if (s.gravityTimers[p] >= need) {
+          s.gravityTimers[p] = 0;
+          const c = s.capsules[p]!;
+          const t = { ...c, y: c.y + 1 };
+          if (fitsCoop(s, t, p)) {
+            s.capsules[p] = t;
+            s.lockTimers[p] = 0;
+            if (s.softDrops[p]) s.scores[p] += 1;
+          } else {
+            s.lockTimers[p]++;
+            if (s.lockTimers[p] >= baseNeed) {
+              lockCapsuleCoop(s, p);
+              anyLocked = true;
+              lockingPlayers.push(p);
+            }
+          }
+        } else {
+          // If on floor, lock timer increments anyway
+          const c = s.capsules[p]!;
+          const t = { ...c, y: c.y + 1 };
+          if (!fitsCoop(s, t, p)) {
+            s.lockTimers[p]++;
+            if (s.lockTimers[p] >= baseNeed) {
+              lockCapsuleCoop(s, p);
+              anyLocked = true;
+              lockingPlayers.push(p);
+            }
+          } else {
+            s.lockTimers[p] = 0;
+          }
+        }
+      }
+    }
+
+    if (anyLocked) {
+      const m = findMatchesCoop(s.board, s);
+      if (m.cleared.length > 0) {
+        s.chain++;
+        if (s.chain > s.maxChain) s.maxChain = s.chain;
+        if (m.bombsEarned > 0) {
+          // Give bomb to random locking player
+          const rp = lockingPlayers[s.rng.int(lockingPlayers.length)];
+          s.bombs[rp] = Math.min(3, s.bombs[rp] + m.bombsEarned);
+        }
+        s.clearing = m.cleared;
+        s.virusesLeft -= m.virusesCleared;
+        s.totalVirusesCleared += m.virusesCleared;
+        
+        // Give score to the primary locking player
+        const mainP = lockingPlayers[0];
+        s.scores[mainP] += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
+        
+        s.phase = Phase.Clearing;
+        s.phaseTimer = CLEAR_ANIM_FRAMES;
+        s.events.push(s.chain > 1 ? 'chain' : 'clear');
+        if (m.virusesCleared > 0) s.events.push('virus');
+      } else {
+        s.chain = 0;
+        if (s.virusesLeft <= 0) {
+          s.phase = Phase.Won;
+          s.events.push('won');
+        } else {
+          // set spawning delays for those who locked
+          for (const p of lockingPlayers) {
+            s.spawningTimers[p] = SPAWN_DELAY;
+          }
+        }
+      }
+    }
+  } else if (s.phase === Phase.Clearing) {
+    s.phaseTimer--;
+    if (s.phaseTimer <= 0) {
+      applyClearCoop(s.board, s.clearing, s.cols, s.rows);
+      s.clearing = [];
+      s.phase = Phase.Settling;
+      s.phaseTimer = FALL_STEP_FRAMES;
+    }
+  } else if (s.phase === Phase.Settling) {
+    s.phaseTimer--;
+    if (s.phaseTimer <= 0) {
+      const moved = stepGravityCoop(s.board, s.cols, s.rows);
+      if (moved) {
+        s.phaseTimer = FALL_STEP_FRAMES;
+      } else {
+        const m = findMatchesCoop(s.board, s);
+        if (m.cleared.length > 0) {
+          s.chain++;
+          if (s.chain > s.maxChain) s.maxChain = s.chain;
+          s.clearing = m.cleared;
+          s.virusesLeft -= m.virusesCleared;
+          s.totalVirusesCleared += m.virusesCleared;
+          s.scores[0] += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50; // just give score to p1
+          s.phase = Phase.Clearing;
+          s.phaseTimer = CLEAR_ANIM_FRAMES;
+          s.events.push(s.chain > 1 ? 'chain' : 'clear');
+          if (m.virusesCleared > 0) s.events.push('virus');
+        } else {
+          s.chain = 0;
+          if (s.virusesLeft <= 0) {
+            s.phase = Phase.Won;
+            s.events.push('won');
+          } else {
+            s.phase = Phase.Falling; // Back to normal gameplay
+          }
+        }
+      }
+    }
+  }
+  
+  s.frame++;
+}

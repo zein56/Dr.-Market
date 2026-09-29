@@ -1,0 +1,25 @@
+{
+  "name": "pill-arena",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,yellow \"npm run dev -w @pill/server\" \"npm run dev -w @pill/client\"",
+    "dev:server": "npm run dev -w @pill/server",
+    "dev:client": "npm run dev -w @pill/client",
+    "build": "npm run build -w @pill/client",
+    "db:init": "mysql -u root -p < packages/server/sql/schema.sql",
+    "test:core": "tsx packages/game-core/test/determinism.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
