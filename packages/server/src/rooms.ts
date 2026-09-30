@@ -57,12 +57,11 @@ export function createRoom(name: string, host: Player, cfg: Partial<RoomConfig>)
   let code = makeCode();
   while (rooms.has(code)) code = makeCode();
 
+  // Oda kurulurken gelen ayarlar da güncellemeyle aynı kurallardan geçer
   const config: RoomConfig = {
-    ...DEFAULT_ROOM_CONFIG,
-    ...cfg,
-    level: clamp(cfg.level ?? DEFAULT_ROOM_CONFIG.level, 0, 20),
-    maxPlayers: clamp(cfg.maxPlayers ?? DEFAULT_ROOM_CONFIG.maxPlayers, 1, 200),
-    detailFanout: clamp(cfg.detailFanout ?? DEFAULT_ROOM_CONFIG.detailFanout, 1, 16),
+    ...sanitizeConfig(DEFAULT_ROOM_CONFIG, cfg),
+    maxPlayers: clamp(Number(cfg.maxPlayers ?? DEFAULT_ROOM_CONFIG.maxPlayers) | 0, 1, 200),
+    detailFanout: clamp(Number(cfg.detailFanout ?? DEFAULT_ROOM_CONFIG.detailFanout) | 0, 1, 16),
   };
 
   const room: Room = {
@@ -193,6 +192,49 @@ export function aliveCount(room: Room): number {
   let n = 0;
   for (const p of room.players.values()) if (p.alive) n++;
   return n;
+}
+
+/**
+ * Dışarıdan gelen oda ayarlarını güvenli biçimde `base` üzerine işler.
+ * Sadece bilinen alanlar alınır, sayılar sınırlanır, bozuk değerler yok sayılır.
+ * (maxPlayers ve detailFanout oda kurulurken createRoom içinde ayrıca sınırlanır.)
+ */
+export function sanitizeConfig(base: RoomConfig, c: any): RoomConfig {
+  c = c && typeof c === 'object' ? c : {};
+  const num = (v: any, lo: number, hi: number, fallback: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? clamp(n | 0, lo, hi) : fallback;
+  };
+  const bool = (v: any, fallback: boolean | undefined) => (v != null ? !!v : fallback);
+
+  return {
+    ...base,
+    level: num(c.level, 0, 20, base.level),
+    speed: ['low', 'med', 'hi'].includes(c.speed) ? c.speed : base.speed,
+    colors: num(c.colors, 3, 10, base.colors),
+    diagMatches: bool(c.diagMatches, base.diagMatches),
+    bombEnabled: bool(c.bombEnabled, base.bombEnabled),
+    bombThreshold: num(c.bombThreshold, 4, 8, base.bombThreshold ?? 5),
+    aoeEnabled: bool(c.aoeEnabled, base.aoeEnabled),
+    aoeThreshold: num(c.aoeThreshold, 5, 8, base.aoeThreshold ?? 5),
+    missPenaltyEnabled: bool(c.missPenaltyEnabled, base.missPenaltyEnabled),
+    missPenaltyThreshold: num(c.missPenaltyThreshold, 3, 10, base.missPenaltyThreshold ?? 3),
+    normalAttackEnabled: bool(c.normalAttackEnabled, base.normalAttackEnabled),
+    normalAttackLen: num(c.normalAttackLen, 4, 8, base.normalAttackLen ?? 4),
+    normalAttackRequireCombo: bool(c.normalAttackRequireCombo, base.normalAttackRequireCombo),
+    stoneAttackEnabled: bool(c.stoneAttackEnabled, base.stoneAttackEnabled),
+    stoneAttackLen: num(c.stoneAttackLen, 4, 8, base.stoneAttackLen ?? 5),
+    stoneAttackRequireCombo: bool(c.stoneAttackRequireCombo, base.stoneAttackRequireCombo),
+    lockAttackEnabled: bool(c.lockAttackEnabled, base.lockAttackEnabled),
+    lockAttackLen: num(c.lockAttackLen, 4, 8, base.lockAttackLen ?? 6),
+    lockAttackRequireCombo: bool(c.lockAttackRequireCombo, base.lockAttackRequireCombo),
+  };
+}
+
+/** Bot olmayan ilk oyuncu (ev sahibi devri için). Yoksa undefined. */
+export function firstHumanId(room: Room): string | undefined {
+  for (const p of room.players.values()) if (!(p as any).isBot) return p.id;
+  return undefined;
 }
 
 function clamp(v: number, lo: number, hi: number) {

@@ -15,6 +15,8 @@ import {
   playerPublic,
   allRooms,
   getSession,
+  sanitizeConfig,
+  firstHumanId,
 } from './rooms';
 import { upsertUser, saveMatch } from './db';
 import { createBotPlayer, startBotsInRoom, stopBotsInRoom } from './bot';
@@ -126,29 +128,8 @@ export function attachSockets(io: Server) {
       if (!p || !room || room.state !== 'lobby') return;
       if (room.hostId !== p.id) return err(socket, 'Sadece oda sahibi ayarları değiştirebilir');
       const c = msg?.config ?? {};
-      // Güvenli merge: sadece izin verilen alanlar
-      room.config = {
-        ...room.config,
-        level: c.level != null ? Math.max(0, Math.min(20, c.level | 0)) : room.config.level,
-        speed: ['low', 'med', 'hi'].includes(c.speed) ? c.speed : room.config.speed,
-        colors: c.colors != null ? Math.max(3, Math.min(10, c.colors | 0)) : room.config.colors,
-        diagMatches: c.diagMatches != null ? !!c.diagMatches : room.config.diagMatches,
-        bombEnabled: c.bombEnabled != null ? !!c.bombEnabled : room.config.bombEnabled,
-        bombThreshold: c.bombThreshold != null ? Math.max(4, Math.min(8, c.bombThreshold | 0)) : room.config.bombThreshold,
-        aoeEnabled: c.aoeEnabled != null ? !!c.aoeEnabled : room.config.aoeEnabled,
-        aoeThreshold: c.aoeThreshold != null ? Math.max(5, Math.min(8, c.aoeThreshold | 0)) : room.config.aoeThreshold,
-        missPenaltyEnabled: c.missPenaltyEnabled != null ? !!c.missPenaltyEnabled : room.config.missPenaltyEnabled,
-        missPenaltyThreshold: c.missPenaltyThreshold != null ? Math.max(3, Math.min(10, c.missPenaltyThreshold | 0)) : room.config.missPenaltyThreshold,
-        normalAttackEnabled: c.normalAttackEnabled != null ? !!c.normalAttackEnabled : room.config.normalAttackEnabled,
-        normalAttackLen: c.normalAttackLen != null ? Math.max(4, Math.min(8, c.normalAttackLen | 0)) : room.config.normalAttackLen,
-        normalAttackRequireCombo: c.normalAttackRequireCombo != null ? !!c.normalAttackRequireCombo : room.config.normalAttackRequireCombo,
-        stoneAttackEnabled: c.stoneAttackEnabled != null ? !!c.stoneAttackEnabled : room.config.stoneAttackEnabled,
-        stoneAttackLen: c.stoneAttackLen != null ? Math.max(4, Math.min(8, c.stoneAttackLen | 0)) : room.config.stoneAttackLen,
-        stoneAttackRequireCombo: c.stoneAttackRequireCombo != null ? !!c.stoneAttackRequireCombo : room.config.stoneAttackRequireCombo,
-        lockAttackEnabled: c.lockAttackEnabled != null ? !!c.lockAttackEnabled : room.config.lockAttackEnabled,
-        lockAttackLen: c.lockAttackLen != null ? Math.max(4, Math.min(8, c.lockAttackLen | 0)) : room.config.lockAttackLen,
-        lockAttackRequireCombo: c.lockAttackRequireCombo != null ? !!c.lockAttackRequireCombo : room.config.lockAttackRequireCombo,
-      };
+      // Güvenli merge: sadece izin verilen alanlar, sınırlanmış değerlerle
+      room.config = sanitizeConfig(room.config, c);
       broadcastRoom(io, room);
       io.emit('room_list', { rooms: listRooms() });
     });
@@ -242,10 +223,20 @@ export function attachSockets(io: Server) {
     socket.on('finished', (msg: { frame: number; won: boolean; score: number; viruses: number; maxChain: number }) => {
       const { player: p, room } = data;
       if (!p || !room || room.state !== 'playing' || !p.alive) return;
+
+      // Sunucu simülasyonu çalıştırmadığı için tam doğrulama yapamaz (bkz. README
+      // "replay doğrulaması"); ama bariz sahte galibiyet iddialarını eler:
+      //  - kazandım diyen oyuncunun virüs sayısı 0 olmalı
+      //  - bildirilen kare sayısı, maçın başlangıcından beri geçen süreden fazla olamaz
+      const claimedFrame = Math.max(0, msg?.frame | 0);
+      const maxFrame = ((Date.now() - room.startAt) / 1000) * 60 + 120; // 2 sn tolerans
+      const plausible = claimedFrame <= maxFrame;
+      const won = !!msg?.won && plausible && (msg?.viruses | 0) === 0;
+
       eliminatePlayer(io, room, p, {
-        won: !!msg?.won,
-        score: msg?.score | 0,
-        maxChain: msg?.maxChain | 0,
+        won,
+        score: Math.max(0, Math.min(10_000_000, msg?.score | 0)),
+        maxChain: Math.max(0, Math.min(200, msg?.maxChain | 0)),
       });
     });
 
@@ -367,7 +358,8 @@ function leaveCurrentRoom(io: Server, socket: Socket) {
   }
 
   if (room.hostId === p.id) {
-    room.hostId = [...room.players.keys()][0];
+    // ev sahibi her zaman gerçek bir oyuncu olmalı (bot maçı başlatamaz)
+    room.hostId = firstHumanId(room) ?? [...room.players.keys()][0];
   }
   if (room.state === 'playing') {
     assignWatchlists(room);
