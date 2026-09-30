@@ -32,7 +32,7 @@ import {
 } from '@pill/game-core';
 import type { Server } from 'socket.io';
 import type { Room, Player } from './rooms';
-import { playerPublic } from './rooms';
+import { playerPublic, pickAttackTargets } from './rooms';
 import { randomBytes } from 'node:crypto';
 
 export type BotDifficulty = 'easy' | 'med' | 'hard';
@@ -82,6 +82,8 @@ export function createBotPlayer(difficulty: BotDifficulty, index: number): Playe
     lastBoard: null,
     lastFrame: 0,
     attackBudget: 0,
+    targetMode: 'random',
+    lastAttackerId: null,
     watchers: new Set(),
     watching: new Set(),
     token: randomBytes(16).toString('hex'),
@@ -119,6 +121,7 @@ class BotRunner {
       level: this.room.config.level,
       speed: this.room.config.speed,
       diagMatches: this.room.config.diagMatches,
+      counterEnabled: this.room.config.counterEnabled,
       aoeEnabled: this.room.config.aoeEnabled,
       aoeThreshold: this.room.config.aoeThreshold,
       missPenaltyEnabled: this.room.config.missPenaltyEnabled,
@@ -216,9 +219,11 @@ class BotRunner {
 
   private emitAttack(attack: AttackInfo) {
     const s = this.state!;
-    const alive = [...this.room.players.values()].filter(p => p.alive && p.id !== this.player.id);
-    if (alive.length === 0) return;
-    const target = alive[0];
+    // Hedef: oyuncularla aynı kurallarla seçilir (eskiden hep listedeki ilk canlı oyuncuydu,
+    // bu da botların aynı kişiye yüklenmesine yol açıyordu).
+    const target = pickAttackTargets(this.room, this.player.id, 1, this.player.targetMode, this.player.lastAttackerId)[0];
+    if (!target) return;
+    target.lastAttackerId = this.player.id;
     const seed = (Math.random() * 0xffffffff) >>> 0;
 
     // Eğer hedef de bir bot ise, direkt queueGarbage

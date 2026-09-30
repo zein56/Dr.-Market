@@ -196,6 +196,15 @@ export default function RoomView({
               )}
             </div>
 
+            {/* Karşı Saldırı */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+              <label className="field checkbox-field" style={{ margin: 0 }}>
+                <input type="checkbox" checked={cfg.counterEnabled !== false} disabled={!isHost}
+                  onChange={e => updateCfg({ counterEnabled: e.target.checked })} />
+                <div><strong>🛡️ Karşı Saldırı</strong><p className="hint">Combo yaparak sırada bekleyen gelen çöpü iptal edebilirsin</p></div>
+              </label>
+            </div>
+
             {/* Hata Cezası */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
               <label className="field checkbox-field" style={{ margin: 0 }}>

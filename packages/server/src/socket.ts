@@ -1,5 +1,6 @@
 import type { Server, Socket } from 'socket.io';
-import type { AttackInfo } from '@pill/protocol';
+import type { AttackInfo, TargetMode } from '@pill/protocol';
+import { TARGET_MODES } from '@pill/protocol';
 import {
   Room,
   Player,
@@ -210,14 +211,21 @@ export function attachSockets(io: Server) {
       p.attackBudget += amount;
       if (p.attackBudget > 120) return;
 
-      const targets = pickAttackTargets(room, p.id, 1);
+      const targets = pickAttackTargets(room, p.id, 1, p.targetMode, p.lastAttackerId);
       for (const t of targets) {
+        t.lastAttackerId = p.id;
         io.to(t.socketId).emit('incoming_attack', {
           fromId: p.id,
           attack: { normal, stone, lock },
           seed: (Math.random() * 0xffffffff) >>> 0,
         });
       }
+    });
+
+    socket.on('set_target', (msg: { mode: TargetMode }) => {
+      const { player: p } = data;
+      if (!p) return;
+      if (TARGET_MODES.includes(msg?.mode)) p.targetMode = msg.mode;
     });
 
     socket.on('finished', (msg: { frame: number; won: boolean; score: number; viruses: number; maxChain: number }) => {
@@ -383,6 +391,7 @@ function startMatch(io: Server, room: Room) {
     p.maxChain = 0;
     p.frames = 0;
     p.attackBudget = 0;
+    p.lastAttackerId = null;
     p.lastBoard = null;
   }
   assignWatchlists(room);

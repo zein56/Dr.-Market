@@ -108,6 +108,10 @@ export function sfx(name: string, level = 0) {
     case 'clear':
       [79, 84, 88].forEach((n, i) => note(N(n), t + i * 0.045, 0.14, 'square', 0.16, sfxGain!));
       break;
+    case 'counter': // kalkan sesi: iki parlak, kısa nota
+      note(N(88), t, 0.09, 'triangle', 0.22, sfxGain!);
+      note(N(95), t + 0.07, 0.16, 'triangle', 0.22, sfxGain!);
+      break;
     case 'chain': {
       const up = Math.max(0, Math.min(level - 2, 7)); // x2'de 0, x9 ve üstünde +7 yarım ton
       [79, 84, 88, 91, 96].forEach((n, i) =>

@@ -67,6 +67,9 @@ export interface MatchConfig {
   cols?: number;
   rows?: number;
 
+  /** Karşı saldırı: kendi ürettiğin saldırı, sırada bekleyen gelen çöpü önce iptal eder. */
+  counterEnabled?: boolean;
+
   aoeEnabled?: boolean;
   aoeThreshold?: number;
 
@@ -106,6 +109,8 @@ export interface AttackInfo {
   normal: number;
   stone: number;
   lock: number;
+  /** çöp parçalarının renkleri (protokoldeki AttackInfo ile aynı) */
+  colors?: number[];
 }
 
 export interface PendingGarbage {
@@ -302,6 +307,38 @@ function spawn(s: GameState) {
 }
 
 /** Zincir adımına göre rakibe gidecek çöp miktarı */
+/**
+ * Karşı saldırı: üretilen saldırıyı (normal + taş) sırada bekleyen gelen çöple
+ * karşılaştırır. Her birim, bekleyen bir çöp parçasını iptal eder (eskiden yeniye).
+ * `attack` yerinde azaltılır. Kilit saldırıları anında uygulandığı için iptal edilemez.
+ * Döndürdüğü değer: iptal edilen parça sayısı.
+ */
+export function cancelPendingGarbage(s: GameState, attack: AttackInfo): number {
+  let budget = attack.normal + attack.stone;
+  if (budget <= 0 || s.pendingGarbage.length === 0) return 0;
+
+  let cancelled = 0;
+  for (const g of s.pendingGarbage) {
+    while (budget > 0 && g.columns.length > 0) {
+      g.columns.pop();
+      g.colors.pop();
+      budget--;
+      cancelled++;
+    }
+    if (budget <= 0) break;
+  }
+  s.pendingGarbage = s.pendingGarbage.filter((g) => g.columns.length > 0);
+
+  // iptal edilen birimler saldırıdan düşer: önce normal, sonra taş
+  let toRemove = cancelled;
+  const fromNormal = Math.min(attack.normal, toRemove);
+  attack.normal -= fromNormal;
+  toRemove -= fromNormal;
+  attack.stone -= Math.min(attack.stone, toRemove);
+  if (attack.normal + attack.stone + attack.lock === 0) attack.colors = [];
+  return cancelled;
+}
+
 function attackFor(groups: number, chain: number, viruses: number, cfg: MatchConfig, matchesLengths: { len: number, color: number }[]): AttackInfo {
   const atk: AttackInfo = { normal: 0, stone: 0, lock: 0, colors: [] };
 
@@ -363,6 +400,10 @@ function enterClearOrSettle(s: GameState) {
     s.totalVirusesCleared += m.virusesCleared;
     s.score += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
     const newAttack = attackFor(m.groups, s.chain, m.virusesCleared, s.cfg, m.matchesLengths);
+    if (s.cfg.counterEnabled) {
+      const cancelled = cancelPendingGarbage(s, newAttack);
+      if (cancelled > 0) s.events.push(`counter:${cancelled}`);
+    }
     if (!s.attackOut) {
       s.attackOut = { normal: 0, stone: 0, lock: 0, colors: [] };
     }

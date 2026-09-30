@@ -85,6 +85,8 @@ export class Juice {
         this.shake(11, 22);
       } else if (ev.startsWith('explosion:')) {
         this.shake(5, 12);
+      } else if (ev.startsWith('counter:')) {
+        this.onCounter(parseInt(ev.split(':')[1], 10) || 1, cols, s.board.length / cols);
       } else if (ev === 'garbage') {
         this.shake(4, 10);
       } else if (ev === 'lost') {
@@ -144,6 +146,31 @@ export class Juice {
     } else {
       this.shake(1.2, 5);
     }
+  }
+
+  /** Karşı saldırı: gelen çöp iptal edildi. */
+  private onCounter(n: number, cols: number, rows: number) {
+    this.announce(`BLOK -${n}`, cols, rows, '#4FC3F7', 1.1);
+    this.shake(3, 8);
+    if (this.reduced) return;
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      this.addParticle({
+        x: cols / 2,
+        y: rows * 0.4,
+        vx: Math.cos(a) * 0.2,
+        vy: Math.sin(a) * 0.2,
+        life: 0,
+        max: 24,
+        size: 0.12,
+        color: '#4FC3F7',
+      });
+    }
+  }
+
+  /** Tahtanın ortasında kısa bir yazı göster (mod değişimi, bilgi vb.). */
+  announce(text: string, cols: number, rows: number, color = '#FFFFFF', size = 0.9) {
+    this.pops.push({ text, x: cols / 2, y: rows * 0.4, life: 0, max: 55, color, size });
   }
 
   private confetti(cols: number) {

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { RoomConfig, RoomPublic, PlayerPublic } from '@pill/protocol';
+import type { RoomConfig, RoomPublic, PlayerPublic, TargetMode } from '@pill/protocol';
 import { DEFAULT_ROOM_CONFIG } from '@pill/protocol';
 
 export interface Player {
@@ -19,6 +19,10 @@ export interface Player {
   lastFrame: number;
   /** anti-flood */
   attackBudget: number;
+  /** saldırılarını kime yönelteceği (oyuncu seçer) */
+  targetMode: TargetMode;
+  /** bu oyuncuyu en son vuran kişi ('revenge' modu için) */
+  lastAttackerId: string | null;
   /** bu oyuncunun tahtasını detaylı izleyenler */
   watchers: Set<string>;
   /** bu oyuncunun izlediği rakipler */
@@ -129,6 +133,8 @@ export function newPlayer(socketId: string, name: string, userId: number | null)
     lastBoard: null,
     lastFrame: 0,
     attackBudget: 0,
+    targetMode: 'random',
+    lastAttackerId: null,
     watchers: new Set(),
     watching: new Set(),
     token: randomBytes(16).toString('hex'),
@@ -176,11 +182,38 @@ export function assignWatchlists(room: Room) {
   }
 }
 
-/** Saldırı hedefi: rastgele başka bir canlı oyuncu (1v1'de tek rakip) */
-export function pickAttackTargets(room: Room, fromId: string, count: number): Player[] {
+/**
+ * Saldırı hedefi seçimi.
+ *  - random : hayatta olan rastgele rakip(ler) (1v1'de tek rakip)
+ *  - leader : galibiyete en yakın (en az virüsü kalan) rakip; henüz tahta bildirmemiş
+ *             oyuncular "lider" sayılmaz. Eşitlikte rastgele.
+ *  - revenge: seni en son vuran rakip; hayatta değilse rastgele.
+ */
+export function pickAttackTargets(
+  room: Room,
+  fromId: string,
+  count: number,
+  mode: TargetMode = 'random',
+  lastAttackerId: string | null = null
+): Player[] {
   const alive = [...room.players.values()].filter((p) => p.alive && p.id !== fromId);
   if (alive.length === 0) return [];
   if (alive.length === 1) return [alive[0]];
+
+  if (mode === 'revenge' && lastAttackerId) {
+    const avenge = alive.find((p) => p.id === lastAttackerId);
+    if (avenge) return [avenge];
+  }
+
+  if (mode === 'leader') {
+    const score = (p: Player) => (p.lastBoard == null ? Infinity : p.viruses);
+    const best = Math.min(...alive.map(score));
+    if (best !== Infinity) {
+      const leaders = alive.filter((p) => score(p) === best);
+      return [leaders[(Math.random() * leaders.length) | 0]];
+    }
+  }
+
   const picked: Player[] = [];
   for (let i = 0; i < Math.min(count, alive.length); i++) {
     picked.push(alive[(Math.random() * alive.length) | 0]);
@@ -213,6 +246,7 @@ export function sanitizeConfig(base: RoomConfig, c: any): RoomConfig {
     speed: ['low', 'med', 'hi'].includes(c.speed) ? c.speed : base.speed,
     colors: num(c.colors, 3, 10, base.colors),
     diagMatches: bool(c.diagMatches, base.diagMatches),
+    counterEnabled: bool(c.counterEnabled, base.counterEnabled),
     bombEnabled: bool(c.bombEnabled, base.bombEnabled),
     bombThreshold: num(c.bombThreshold, 4, 8, base.bombThreshold ?? 5),
     aoeEnabled: bool(c.aoeEnabled, base.aoeEnabled),

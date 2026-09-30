@@ -25,6 +25,7 @@ import {
   decodeBoard,
   virusCount,
   virusTopRow,
+  cancelPendingGarbage,
 } from '../src/index';
 
 let pass = 0;
@@ -291,6 +292,64 @@ console.log('\nSerileştirme');
   for (let i = 0; i < g.board.length; i++) if (dec[i] !== g.board[i]) same = false;
   check('tahta kodla-çöz kayıpsız', same);
   check('paket boyutu makul', enc.length < 256, `${enc.length} bayt`);
+}
+
+// --- Karşı saldırı ---
+console.log('\nKarşı saldırı');
+{
+  const sum = (g: any) => g.pendingGarbage.reduce((n: number, x: any) => n + x.columns.length, 0);
+  const mk = (cols: number, stones = false): any => ({
+    pendingGarbage: [{ columns: Array.from({ length: cols }, (_, i) => i), colors: Array(cols).fill(0), stones }],
+  });
+
+  {
+    const s = mk(3);
+    const atk = { normal: 5, stone: 0, lock: 0, colors: [1] };
+    const c = cancelPendingGarbage(s, atk);
+    check('saldırı, gelen çöpten büyükse hepsini iptal eder', c === 3 && sum(s) === 0 && atk.normal === 2, `iptal=${c} kalan=${sum(s)} giden=${atk.normal}`);
+  }
+  {
+    const s = mk(3);
+    const atk = { normal: 2, stone: 0, lock: 0, colors: [1] };
+    const c = cancelPendingGarbage(s, atk);
+    check('saldırı, gelen çöpten küçükse kısmen iptal eder', c === 2 && sum(s) === 1 && atk.normal === 0 && atk.colors.length === 0, `iptal=${c} kalan=${sum(s)}`);
+  }
+  {
+    const s = mk(1);
+    const atk = { normal: 1, stone: 1, lock: 2, colors: [] as number[] };
+    const c = cancelPendingGarbage(s, atk);
+    check('önce normal düşer, taş ve kilit korunur', c === 1 && atk.normal === 0 && atk.stone === 1 && atk.lock === 2);
+  }
+  {
+    const s = { pendingGarbage: [] } as any;
+    const atk = { normal: 2, stone: 0, lock: 0, colors: [] as number[] };
+    check('bekleyen çöp yoksa saldırı aynen gider', cancelPendingGarbage(s, atk) === 0 && atk.normal === 2);
+  }
+
+  // motor içinde uçtan uca: aynı anda iki dizi = 1 saldırı (klasik kural)
+  const run = (counterEnabled: boolean) => {
+    const g = createGame({ seed: 5, level: 1, speed: 'low', colors: 3, counterEnabled });
+    g.board.fill(0);
+    for (let x = 0; x < 4; x++) g.board[15 * COLS + x] = cell(KIND_SINGLE, 0);
+    for (let x = 0; x < 4; x++) g.board[14 * COLS + x] = cell(KIND_SINGLE, 1);
+    g.virusesLeft = 5;
+    queueGarbage(g, { normal: 3, stone: 0, lock: 0 }, 77);
+    g.phase = Phase.Settling;
+    g.phaseTimer = 1;
+    for (let i = 0; i < 60; i++) {
+      step(g, []);
+      if (g.phase === Phase.Clearing) break;
+    }
+    return {
+      out: g.attackOut ? g.attackOut.normal + g.attackOut.stone + g.attackOut.lock : 0,
+      pending: sum(g),
+      ev: g.events.find((e) => e.startsWith('counter:')),
+    };
+  };
+  const on = run(true);
+  check('açıkken: saldırı gelen çöpü azaltır, rakibe gitmez', on.out === 0 && on.pending === 2 && on.ev === 'counter:1', JSON.stringify(on));
+  const off = run(false);
+  check('kapalıyken: eski davranış (rakibe gider, çöp kalır)', off.out === 1 && off.pending === 3 && !off.ev, JSON.stringify(off));
 }
 
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);

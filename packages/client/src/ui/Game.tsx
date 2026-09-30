@@ -17,10 +17,11 @@ import {
   type Board,
   type AttackInfo,
 } from '@pill/game-core';
-import type { PlayerPublic } from '@pill/protocol';
+import type { PlayerPublic, TargetMode } from '@pill/protocol';
+import { TARGET_MODES } from '@pill/protocol';
 import { socket, serverNow } from '../net/socket';
 import { Juice } from '../game/juice';
-import { drawBoard, drawMini, drawNext, advanceAnim, type VisualEffect } from '../game/render';
+import { drawBoard, drawMini, drawNext, drawIncomingMeter, advanceAnim, type VisualEffect } from '../game/render';
 import { attachKeyboard, attachTouch, holdable } from '../game/controls';
 import { pollGamepad, createGamepadState } from '../game/gamepad';
 import { sfx, startMusic, stopMusic, pauseMusic, resumeMusic, setTheme, initAudio } from '../game/audio';
@@ -68,6 +69,14 @@ export default function Game({
   const gpStateRef = useRef(createGamepadState());
   const fxRef = useRef<VisualEffect[]>([]);
   const juiceRef = useRef(new Juice());
+  const [targetMode, setTargetMode] = useState<TargetMode>(() => {
+    try {
+      const v = localStorage.getItem('pill.targetMode');
+      return TARGET_MODES.includes(v as TargetMode) ? (v as TargetMode) : 'random';
+    } catch {
+      return 'random';
+    }
+  });
   const isPausedRef = useRef(false);
   const lastPauseBtnsRef = useRef<Record<number, boolean>>({});
 
@@ -118,6 +127,7 @@ export default function Game({
       level: match.config.level,
       speed: match.config.speed,
       diagMatches: match.config.diagMatches,
+      counterEnabled: match.config.counterEnabled,
       aoeEnabled: match.config.aoeEnabled,
       aoeThreshold: match.config.aoeThreshold,
       missPenaltyEnabled: match.config.missPenaltyEnabled,
@@ -257,10 +267,33 @@ export default function Game({
     };
   }, []);
 
+  // --- saldırı hedefleme ---
+  const chooseTarget = useCallback((m: TargetMode, announce = true) => {
+    setTargetMode(m);
+    try { localStorage.setItem('pill.targetMode', m); } catch { /* yok say */ }
+    socket.emit('set_target', { mode: m });
+    const s = stateRef.current;
+    if (announce && s) juiceRef.current.announce(`🎯 ${TARGET_LABEL[m]}`, s.cols || COLS, s.board.rows, '#FFFFFF', 0.8);
+  }, []);
+
+  // sunucu tercihi maçlar arasında hatırlar; istemci açılışta mevcut seçimi bildirir
+  useEffect(() => {
+    socket.emit('set_target', { mode: targetMode });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- kontroller ---
   useEffect(() => {
     const onCheat = (e: KeyboardEvent) => {
-      if (e.code === 'Digit9' && stateRef.current) {
+      // 1/2/3: hedefleme modu
+      const idx = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code);
+      if (idx >= 0 && !e.repeat) {
+        chooseTarget(TARGET_MODES[idx]);
+        e.preventDefault();
+        return;
+      }
+      // Hata ayıklama kısayolu: yalnızca geliştirme modunda (üretimde herkes taş saldırısı gönderebiliyordu)
+      if (import.meta.env.DEV && e.code === 'Digit9' && stateRef.current) {
         socket.emit('attack', { frame: stateRef.current.frame, attack: { normal: 0, stone: 1, lock: 0 } });
         e.preventDefault();
       }
@@ -275,7 +308,7 @@ export default function Game({
       offKb();
       offTouch();
     };
-  }, [sink, padMode]);
+  }, [sink, padMode, chooseTarget]);
 
   // --- sabit adımlı oyun döngüsü ---
   useEffect(() => {
@@ -327,6 +360,8 @@ export default function Game({
           if (ev === 'move' || ev === 'rotate' || ev === 'lock' || ev === 'clear' ||
             ev === 'chain' || ev === 'virus' || ev === 'won' || ev === 'lost') {
             sfx(ev, s.chain);
+          } else if (ev.startsWith('counter:')) {
+            sfx('counter');
           } else if (ev.startsWith('penalty_spawn:')) {
             sfx('penalty_spawn');
             fxRef.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -402,6 +437,10 @@ export default function Game({
         s
       );
       juiceRef.current.draw(ctx, cell, cols);
+      if (match.config.counterEnabled) {
+        const incoming = s.pendingGarbage.reduce((n, g) => n + g.columns.length, 0);
+        drawIncomingMeter(ctx, cell, s.board.rows, incoming);
+      }
       juiceRef.current.applyShake(canvas);
 
       const nc = nextRef.current?.getContext('2d');
@@ -626,6 +665,22 @@ export default function Game({
         )
       }
 
+      {peerList.length > 1 && (
+        <div className="target-row">
+          <span className="target-label">🎯 Hedef</span>
+          {TARGET_MODES.map((m, i) => (
+            <button
+              key={m}
+              className={`target-pill ${targetMode === m ? 'on' : ''}`}
+              onClick={() => chooseTarget(m)}
+              title={`${TARGET_HINT[m]} (tuş: ${i + 1})`}
+            >
+              {TARGET_LABEL[m]}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="game-foot">
         <button
           className="btn small ghost"
@@ -649,6 +704,17 @@ export default function Game({
     </div >
   );
 }
+
+const TARGET_LABEL: Record<TargetMode, string> = {
+  random: 'Rastgele',
+  leader: 'Lider',
+  revenge: 'Rövanş',
+};
+const TARGET_HINT: Record<TargetMode, string> = {
+  random: 'Hayatta olan rastgele bir rakip',
+  leader: 'Galibiyete en yakın rakip (en az virüsü kalan)',
+  revenge: 'Seni en son vuran rakip',
+};
 
 function PeerBoard({ peer }: { peer: PeerView }) {
   const ref = useRef<HTMLCanvasElement>(null);

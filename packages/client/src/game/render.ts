@@ -585,3 +585,33 @@ export function drawNext(ctx: CanvasRenderingContext2D, a: number, b: number, s:
   drawHalf(ctx, a, 0, 0, s, 'l');
   drawHalf(ctx, b, s, 0, s, 'r');
 }
+
+/**
+ * Bekleyen (henüz tahtaya inmemiş) gelen çöpü tahtanın sol kenarında kırmızı bir
+ * çubuk olarak gösterir. Çubuk yükseldikçe tehlike artar; combo yaparak (karşı saldırı)
+ * bu çubuğu küçültebilirsin.
+ */
+export function drawIncomingMeter(
+  ctx: CanvasRenderingContext2D,
+  cellSize: number,
+  rows: number,
+  count: number
+) {
+  if (count <= 0) return;
+  const h = Math.min(count, rows) * cellSize * 0.6;
+  const w = Math.max(4, cellSize * 0.22);
+  const y = rows * cellSize - h;
+  ctx.save();
+  ctx.globalAlpha = 0.6 + 0.3 * Math.sin(performance.now() / 140);
+  ctx.fillStyle = '#E8453C';
+  ctx.fillRect(0, y, w, h);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fff';
+  ctx.font = `800 ${Math.max(10, cellSize * 0.45)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 3;
+  ctx.fillText(String(count), w + 2, y + cellSize * 0.5);
+  ctx.restore();
+}

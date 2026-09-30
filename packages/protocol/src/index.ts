@@ -2,6 +2,15 @@
 
 export type SpeedSetting = 'low' | 'med' | 'hi';
 
+/**
+ * Saldırı hedefleme modu (oyuncu başına, maç içinde değiştirilebilir):
+ *  - random : hayatta olan rastgele bir rakip
+ *  - leader : galibiyete en yakın rakip (en az virüsü kalan)
+ *  - revenge: seni en son vuran rakip (hayatta değilse rastgele)
+ */
+export type TargetMode = 'random' | 'leader' | 'revenge';
+export const TARGET_MODES: TargetMode[] = ['random', 'leader', 'revenge'];
+
 export interface AttackInfo {
   normal: number;
   stone: number;
@@ -16,6 +25,9 @@ export interface RoomConfig {
   /** her oyuncu aynı anda kaç rakip tahtasını detaylı görsün */
   detailFanout: number;
   diagMatches?: boolean;
+
+  /** Karşı saldırı: ürettiğin saldırı, bekleyen gelen çöpü önce iptal eder. */
+  counterEnabled?: boolean;
 
   aoeEnabled?: boolean;
   aoeThreshold?: number;
@@ -82,6 +94,8 @@ export interface C2S {
   finished: { frame: number; won: boolean; score: number; viruses: number; maxChain: number };
   ping: { t0: number };
   chat: { text: string };
+  /** saldırı hedefleme modunu seç */
+  set_target: { mode: TargetMode };
 }
 
 /** Sunucu -> İstemci */
@@ -128,6 +142,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   maxPlayers: 32,
   detailFanout: 8,
   diagMatches: false,
+  counterEnabled: true,
   aoeEnabled: false,
   aoeThreshold: 5,
   missPenaltyEnabled: false,

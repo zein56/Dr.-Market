@@ -21,6 +21,8 @@ export interface LocalConfig {
   aoeEnabled: boolean;
   aoeThreshold: number;
 
+  counterEnabled: boolean;
+
   missPenaltyEnabled: boolean;
   missPenaltyThreshold: number;
 
@@ -80,6 +82,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [sharedBoard, setSharedBoard] = useState(saved.sharedBoard ?? false);
 
   const [missPenaltyEnabled, setMissPenaltyEnabled] = useState(saved.missPenaltyEnabled ?? false);
+  const [counterEnabled, setCounterEnabled] = useState(saved.counterEnabled ?? true);
   const [missPenaltyThreshold, setMissPenaltyThreshold] = useState(saved.missPenaltyThreshold ?? 3);
 
   const [normalAttackEnabled, setNormalAttackEnabled] = useState(saved.normalAttackEnabled ?? false);
@@ -100,7 +103,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
       p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-      diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+      counterEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
       lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
@@ -108,7 +111,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
     }));
   }, [
     p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-    diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+    counterEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
     normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
     stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
     lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
@@ -154,6 +157,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       p3Name: p3IsBot ? `🤖 Bot (${p3BotDifficulty === 'easy' ? 'Kolay' : p3BotDifficulty === 'med' ? 'Orta' : 'Zor'})` : (p3Name.trim() || 'Oyuncu 3'),
       p3IsBot,
       p3BotDifficulty,
+      counterEnabled,
       diagMatches,
       bombEnabled, bombThreshold,
       aoeEnabled, aoeThreshold,
@@ -538,6 +542,16 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
               <input type="range" min={5} max={8} value={aoeThreshold} onChange={e => setAoeThreshold(Number(e.target.value))} />
             </label>
           )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+          <label className="field checkbox-field" style={{ margin: 0 }}>
+            <input type="checkbox" checked={counterEnabled} onChange={e => setCounterEnabled(e.target.checked)} />
+            <div>
+              <strong>🛡️ Karşı Saldırı</strong>
+              <p className="hint">Combo yaparak sırada bekleyen gelen çöpü iptal edebilirsin</p>
+            </div>
+          </label>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>

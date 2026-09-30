@@ -12,7 +12,7 @@ import {
   type GameState,
 } from '@pill/game-core';
 import { Juice } from '../game/juice';
-import { drawBoard, drawNext, advanceAnim, type VisualEffect } from '../game/render';
+import { drawBoard, drawNext, drawIncomingMeter, advanceAnim, type VisualEffect } from '../game/render';
 import { attachTouch, holdable } from '../game/controls';
 import { pollGamepad, createGamepadState } from '../game/gamepad';
 import { tickBot, createBotState, type BotDifficulty } from '../game/bot';
@@ -119,6 +119,7 @@ export default function LocalGame({
       level: config.level,
       speed: config.speed,
       diagMatches: config.diagMatches,
+      counterEnabled: config.counterEnabled,
       cols: boardCols,
       rows: boardRows,
       aoeEnabled: config.aoeEnabled,
@@ -382,6 +383,8 @@ export default function LocalGame({
           for (const ev of s1.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s1.chain);
+            } else if (ev.startsWith('counter:')) {
+              sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx1Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -419,6 +422,8 @@ export default function LocalGame({
           for (const ev of s2.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s2.chain);
+            } else if (ev.startsWith('counter:')) {
+              sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx2Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -454,6 +459,8 @@ export default function LocalGame({
           for (const ev of s3.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s3.chain);
+            } else if (ev.startsWith('counter:')) {
+              sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx3Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -516,6 +523,7 @@ export default function LocalGame({
           juice1Ref.current.update();
           drawBoard(ctx, s1.board, { cellSize: cell, showGhost: false, clearing: s1.clearing, clearPulse: s1.phaseTimer, effects: fx1Ref.current }, s1);
           juice1Ref.current.draw(ctx, cell, s1.cols || boardCols);
+          if (config.counterEnabled) drawIncomingMeter(ctx, cell, s1.board.rows, s1.pendingGarbage.reduce((t, x) => t + x.columns.length, 0));
           juice1Ref.current.applyShake(c1);
         }
       }
@@ -526,6 +534,7 @@ export default function LocalGame({
           juice2Ref.current.update();
           drawBoard(ctx, s2.board, { cellSize: cell, showGhost: false, clearing: s2.clearing, clearPulse: s2.phaseTimer, effects: fx2Ref.current }, s2);
           juice2Ref.current.draw(ctx, cell, s2.cols || boardCols);
+          if (config.counterEnabled) drawIncomingMeter(ctx, cell, s2.board.rows, s2.pendingGarbage.reduce((t, x) => t + x.columns.length, 0));
           juice2Ref.current.applyShake(c2);
         }
       }
@@ -536,6 +545,7 @@ export default function LocalGame({
           juice3Ref.current.update();
           drawBoard(ctx, s3.board, { cellSize: cell, showGhost: false, clearing: s3.clearing, clearPulse: s3.phaseTimer, effects: fx3Ref.current }, s3);
           juice3Ref.current.draw(ctx, cell, s3.cols || boardCols);
+          if (config.counterEnabled) drawIncomingMeter(ctx, cell, s3.board.rows, s3.pendingGarbage.reduce((t, x) => t + x.columns.length, 0));
           juice3Ref.current.applyShake(c3);
         }
       }

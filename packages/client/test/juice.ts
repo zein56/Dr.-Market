@@ -74,5 +74,21 @@ console.log('\nJuice');
   check('kaybedince sarsıntı', c.style.transform.startsWith('translate('));
 }
 
+{
+  // karşı saldırı: "BLOK" yazısı + hafif sarsıntı
+  const j = new Juice();
+  const c: any = { style: { transform: '' } };
+  draws = 0;
+  j.handle({ events: ['counter:2'], clearing: [], board, chain: 1 }, COLS);
+  j.update(); j.draw(fakeCtx, 30, COLS); j.applyShake(c);
+  check('karşı saldırıda BLOK efekti çizilir', draws > 0);
+  check('karşı saldırıda hafif sarsıntı', c.style.transform.startsWith('translate('));
+  const j2 = new Juice();
+  draws = 0;
+  j2.announce('🎯 Lider', COLS, 16);
+  j2.draw(fakeCtx, 30, COLS);
+  check('announce ile bilgi yazısı gösterilir', draws > 0);
+}
+
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
 if (fail > 0) process.exit(1);
