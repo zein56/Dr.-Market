@@ -11,6 +11,7 @@ import {
   FPS,
   type GameState,
 } from '@pill/game-core';
+import { Juice } from '../game/juice';
 import { drawBoard, drawNext, advanceAnim, type VisualEffect } from '../game/render';
 import { attachTouch, holdable } from '../game/controls';
 import { pollGamepad, createGamepadState } from '../game/gamepad';
@@ -77,6 +78,9 @@ export default function LocalGame({
   const fx1Ref = useRef<VisualEffect[]>([]);
   const fx2Ref = useRef<VisualEffect[]>([]);
   const fx3Ref = useRef<VisualEffect[]>([]);
+  const juice1Ref = useRef(new Juice());
+  const juice2Ref = useRef(new Juice());
+  const juice3Ref = useRef(new Juice());
 
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
@@ -374,9 +378,10 @@ export default function LocalGame({
           const inp1 = q1.current;
           q1.current = [];
           step(s1, inp1);
+          juice1Ref.current.handle(s1, s1.cols || boardCols);
           for (const ev of s1.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
-              sfx(ev);
+              sfx(ev, s1.chain);
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx1Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -410,9 +415,10 @@ export default function LocalGame({
             s2.softDrop = false;
           }
           step(s2, inp2);
+          juice2Ref.current.handle(s2, s2.cols || boardCols);
           for (const ev of s2.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
-              sfx(ev);
+              sfx(ev, s2.chain);
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx2Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -444,9 +450,10 @@ export default function LocalGame({
             s3.softDrop = false;
           }
           step(s3, inp3);
+          juice3Ref.current.handle(s3, s3.cols || boardCols);
           for (const ev of s3.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
-              sfx(ev);
+              sfx(ev, s3.chain);
             } else if (ev.startsWith('penalty_spawn:')) {
               sfx('penalty_spawn');
               fx3Ref.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -506,21 +513,30 @@ export default function LocalGame({
         const ctx = c1.getContext('2d');
         if (ctx) {
           const cell = c1.clientWidth / (s1.cols || boardCols);
+          juice1Ref.current.update();
           drawBoard(ctx, s1.board, { cellSize: cell, showGhost: false, clearing: s1.clearing, clearPulse: s1.phaseTimer, effects: fx1Ref.current }, s1);
+          juice1Ref.current.draw(ctx, cell, s1.cols || boardCols);
+          juice1Ref.current.applyShake(c1);
         }
       }
       if (c2) {
         const ctx = c2.getContext('2d');
         if (ctx) {
           const cell = c2.clientWidth / (s2.cols || boardCols);
+          juice2Ref.current.update();
           drawBoard(ctx, s2.board, { cellSize: cell, showGhost: false, clearing: s2.clearing, clearPulse: s2.phaseTimer, effects: fx2Ref.current }, s2);
+          juice2Ref.current.draw(ctx, cell, s2.cols || boardCols);
+          juice2Ref.current.applyShake(c2);
         }
       }
       if (config.p3Enabled && c3 && s3) {
         const ctx = c3.getContext('2d');
         if (ctx) {
           const cell = c3.clientWidth / (s3.cols || boardCols);
+          juice3Ref.current.update();
           drawBoard(ctx, s3.board, { cellSize: cell, showGhost: false, clearing: s3.clearing, clearPulse: s3.phaseTimer, effects: fx3Ref.current }, s3);
+          juice3Ref.current.draw(ctx, cell, s3.cols || boardCols);
+          juice3Ref.current.applyShake(c3);
         }
       }
 

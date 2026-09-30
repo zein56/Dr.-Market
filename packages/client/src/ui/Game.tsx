@@ -19,6 +19,7 @@ import {
 } from '@pill/game-core';
 import type { PlayerPublic } from '@pill/protocol';
 import { socket, serverNow } from '../net/socket';
+import { Juice } from '../game/juice';
 import { drawBoard, drawMini, drawNext, advanceAnim, type VisualEffect } from '../game/render';
 import { attachKeyboard, attachTouch, holdable } from '../game/controls';
 import { pollGamepad, createGamepadState } from '../game/gamepad';
@@ -66,6 +67,7 @@ export default function Game({
   const pendingAttackRef = useRef<AttackInfo>({ normal: 0, stone: 0, lock: 0 });
   const gpStateRef = useRef(createGamepadState());
   const fxRef = useRef<VisualEffect[]>([]);
+  const juiceRef = useRef(new Juice());
   const isPausedRef = useRef(false);
   const lastPauseBtnsRef = useRef<Record<number, boolean>>({});
 
@@ -319,11 +321,12 @@ export default function Game({
         const inputs = inputQueue.current;
         inputQueue.current = [];
         step(s, inputs);
+        juiceRef.current.handle(s, s.cols || COLS);
 
         for (const ev of s.events) {
           if (ev === 'move' || ev === 'rotate' || ev === 'lock' || ev === 'clear' ||
             ev === 'chain' || ev === 'virus' || ev === 'won' || ev === 'lost') {
-            sfx(ev);
+            sfx(ev, s.chain);
           } else if (ev.startsWith('penalty_spawn:')) {
             sfx('penalty_spawn');
             fxRef.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -385,6 +388,7 @@ export default function Game({
 
       const cols = s.cols || COLS;
       const cell = canvas.clientWidth / cols;
+      juiceRef.current.update();
       drawBoard(
         ctx,
         s.board,
@@ -397,6 +401,8 @@ export default function Game({
         },
         s
       );
+      juiceRef.current.draw(ctx, cell, cols);
+      juiceRef.current.applyShake(canvas);
 
       const nc = nextRef.current?.getContext('2d');
       if (nc) drawNext(nc, s.nextA, s.nextB, nextRef.current!.width / 2);
@@ -428,8 +434,8 @@ export default function Game({
 
       canvas.style.display = prevDisplay;
 
-      const cols = state.current?.cols || COLS;
-      const rows = state.current?.rows || ROWS;
+      const cols = stateRef.current?.cols || COLS;
+      const rows = stateRef.current?.rows || ROWS;
       let cell = Math.floor(Math.min(availW / cols, availH / rows));
       cell = Math.max(12, cell);
       const dpr = Math.min(2, window.devicePixelRatio || 1);

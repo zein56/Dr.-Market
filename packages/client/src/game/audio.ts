@@ -89,7 +89,8 @@ function noise(start: number, dur: number, gain: number, filterHz: number) {
 
 const N = (n: number) => 440 * Math.pow(2, (n - 69) / 12); // MIDI -> Hz
 
-export function sfx(name: string) {
+/** level: zincir uzunluğu; 'chain' sesinin perdesini (yarım ton) yükseltir. */
+export function sfx(name: string, level = 0) {
   if (!ctx || !sfxGain || !sfxOn) return;
   const t = ctx.currentTime;
   switch (name) {
@@ -107,11 +108,13 @@ export function sfx(name: string) {
     case 'clear':
       [79, 84, 88].forEach((n, i) => note(N(n), t + i * 0.045, 0.14, 'square', 0.16, sfxGain!));
       break;
-    case 'chain':
+    case 'chain': {
+      const up = Math.max(0, Math.min(level - 2, 7)); // x2'de 0, x9 ve üstünde +7 yarım ton
       [79, 84, 88, 91, 96].forEach((n, i) =>
-        note(N(n), t + i * 0.05, 0.18, 'square', 0.18, sfxGain!)
+        note(N(n + up), t + i * 0.05, 0.18, 'square', 0.18, sfxGain!)
       );
       break;
+    }
     case 'virus':
       note(N(64), t, 0.12, 'sawtooth', 0.14, sfxGain);
       note(N(52), t + 0.06, 0.16, 'sawtooth', 0.12, sfxGain);
