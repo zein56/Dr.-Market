@@ -108,6 +108,13 @@ export function sfx(name: string, level = 0) {
     case 'clear':
       [79, 84, 88].forEach((n, i) => note(N(n), t + i * 0.045, 0.14, 'square', 0.16, sfxGain!));
       break;
+    case 'power': // güçlendirici: yükselen pırıltı
+      [84, 88, 91, 96].forEach((n, i) => note(N(n), t + i * 0.04, 0.12, 'triangle', 0.18, sfxGain!));
+      break;
+    case 'shield': // kalkan engelledi: tok bir çınlama
+      note(N(76), t, 0.07, 'square', 0.2, sfxGain!);
+      note(N(64), t + 0.04, 0.18, 'triangle', 0.22, sfxGain!);
+      break;
     case 'counter': // kalkan sesi: iki parlak, kısa nota
       note(N(88), t, 0.09, 'triangle', 0.22, sfxGain!);
       note(N(95), t + 0.07, 0.16, 'triangle', 0.22, sfxGain!);

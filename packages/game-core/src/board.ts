@@ -34,7 +34,7 @@ export function createBoard(boardCols?: number, boardRows?: number): Board {
   return board;
 }
 
-export function idx(b, x: number, y: number): number {
+export function idx(b: Board, x: number, y: number): number {
   return y * b.cols + x;
 }
 
@@ -426,7 +426,11 @@ export function injectGarbage(b: Board, columns: number[], colors: number[], sto
 }
 
 export function cloneBoard(b: Board): Board {
-  return new Uint8Array(b);
+  const copy = new Uint8Array(b) as Board;
+  // Uint8Array kopyası boyut bilgisini taşımaz; eksik kalırsa findMatches/idx çalışmaz
+  copy.cols = b.cols;
+  copy.rows = b.rows;
+  return copy;
 }
 
 /** Ağ için 8x16 tahtayı 64 byte'a paketle (hücre başına 1 byte zaten, base64'le) */
@@ -445,5 +449,8 @@ export function decodeBoard(str: string): Board {
     for (let i = 0; i < b.length; i++) b[i] = s.charCodeAt(i);
     return b;
   }
-  return new Uint8Array(Buffer.from(str, 'base64'));
+  const out = createBoard();
+  const buf = Buffer.from(str, 'base64');
+  for (let i = 0; i < out.length && i < buf.length; i++) out[i] = buf[i];
+  return out;
 }

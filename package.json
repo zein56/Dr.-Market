@@ -13,9 +13,10 @@
     "db:init": "mysql -u root -p < packages/server/sql/schema.sql",
     "test:core": "tsx packages/game-core/test/determinism.ts",
     "test:juice": "tsx packages/client/test/juice.ts",
+    "test:render": "tsx packages/client/test/render.ts",
     "test:server": "tsx packages/server/test/targeting.ts",
     "test:e2e": "node packages/server/test/e2e.mjs",
-    "test": "npm run test:core && npm run test:server && npm run test:juice"
+    "test": "npm run test:core && npm run test:server && npm run test:juice && npm run test:render"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

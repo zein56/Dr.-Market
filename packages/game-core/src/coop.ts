@@ -5,6 +5,7 @@ import {
   virusCount, virusTopRow
 } from './constants';
 import { Phase, Input, MatchConfig, Capsule, AttackInfo } from './sim';
+import { POWER_STRIKE, POWER_JOKER, POWER_MIN_GAP, POWER_CHANCE } from './powerups';
 
 export interface CoopGameState {
   cfg: MatchConfig;
@@ -32,6 +33,11 @@ export interface CoopGameState {
   bombs: number[];
   bombActives: boolean[];
   spawningTimers: number[]; // Each player can spawn independently if the game isn't clearing
+
+  /** Güçlendiriciler (ortak tahtada: joker ve yıldırım = virüs avcısı) */
+  powerRng: Rng;
+  nextPowers: number[];
+  powerGaps: number[];
   
   phaseTimer: number; // Only used when phase = Clearing or Settling
   clearing: number[];
@@ -153,7 +159,11 @@ export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?
     bombs: Array(playerCount).fill(0),
     bombActives: Array(playerCount).fill(false),
     spawningTimers: Array(playerCount).fill(SPAWN_DELAY),
-    
+
+    powerRng: new Rng((cfg.seed ^ 0x7f4a7c15) >>> 0),
+    nextPowers: Array(playerCount).fill(0),
+    powerGaps: Array(playerCount).fill(0),
+
     phaseTimer: 0,
     clearing: [],
     chain: 0,
@@ -203,29 +213,91 @@ function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): b
   return true;
 }
 
+function writeHalvesCoop(board: Uint8Array, cols: number, c: Capsule, a: number, b: number) {
+  const [x1, y1, x2, y2] = capsuleCells(c);
+  if (y1 === y2) {
+    const leftFirst = x1 < x2;
+    setCoop(board, x1, y1, cols, cell(leftFirst ? KIND_LEFT : KIND_RIGHT, a));
+    setCoop(board, x2, y2, cols, cell(leftFirst ? KIND_RIGHT : KIND_LEFT, b));
+  } else {
+    const firstOnTop = y1 < y2;
+    setCoop(board, x1, y1, cols, cell(firstOnTop ? KIND_UP : KIND_DOWN, a));
+    setCoop(board, x2, y2, cols, cell(firstOnTop ? KIND_DOWN : KIND_UP, b));
+  }
+}
+
+/** Joker: yerleştiği anda en çok hücre / virüs temizleyecek rengi seçer (eşitlikte küçük renk). */
+function jokerColorsCoop(s: CoopGameState, c: Capsule): [number, number] {
+  let bestK = -1;
+  let bestScore = 0;
+  for (let k = 0; k < s.cfg.colors; k++) {
+    const trial = new Uint8Array(s.board);
+    writeHalvesCoop(trial, s.cols, c, k, k);
+    const m = findMatchesCoop(trial, s);
+    const score = m.cleared.length + m.virusesCleared * 10;
+    if (score > bestScore) {
+      bestScore = score;
+      bestK = k;
+    }
+  }
+  return bestK >= 0 ? [bestK, bestK] : [c.a, c.b];
+}
+
+/** Yıldırım (ortak tahtada): rastgele en fazla 3 virüsü yok eder. */
+function zapViruses(s: CoopGameState, p: number) {
+  const viruses: number[] = [];
+  for (let i = 0; i < s.board.length; i++) if (isVirus(s.board[i])) viruses.push(i);
+  const n = Math.min(3, viruses.length);
+  const zapped: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const j = k + s.powerRng.int(viruses.length - k); // kısmi Fisher-Yates
+    [viruses[k], viruses[j]] = [viruses[j], viruses[k]];
+    zapped.push(viruses[k]);
+  }
+  for (const i of zapped) s.board[i] = EMPTY;
+  s.virusesLeft -= zapped.length;
+  s.totalVirusesCleared += zapped.length;
+  s.scores[p] += zapped.length * 100;
+  // virüsün üstündeki parçalar hemen düşsün
+  while (stepGravityCoop(s.board, s.cols, s.rows)) { /* yerçekimi oturana kadar */ }
+  return zapped;
+}
+
 function lockCapsuleCoop(s: CoopGameState, p: number) {
   const c = s.capsules[p];
   if (!c) return;
-  const [x1, y1, x2, y2] = capsuleCells(c);
+  const [x1, y1] = capsuleCells(c);
 
+  let a = c.a;
+  let b = c.b;
   if (c.isBomb) {
     setCoop(s.board, x1, y1, s.cols, cell(KIND_BOMB, 0));
   } else {
-    const horizontal = y1 === y2;
-    if (horizontal) {
-      const leftFirst = x1 < x2;
-      setCoop(s.board, x1, y1, s.cols, cell(leftFirst ? KIND_LEFT : KIND_RIGHT, c.a));
-      setCoop(s.board, x2, y2, s.cols, cell(leftFirst ? KIND_RIGHT : KIND_LEFT, c.b));
-    } else {
-      const firstOnTop = y1 < y2;
-      setCoop(s.board, x1, y1, s.cols, cell(firstOnTop ? KIND_UP : KIND_DOWN, c.a));
-      setCoop(s.board, x2, y2, s.cols, cell(firstOnTop ? KIND_DOWN : KIND_UP, c.b));
-    }
+    if (c.power === POWER_JOKER) [a, b] = jokerColorsCoop(s, c);
+    writeHalvesCoop(s.board, s.cols, c, a, b);
   }
-  
+
   s.capsules[p] = null;
   s.capsulesDropped[p]++;
   s.events.push(`lock:p${p}`);
+
+  if (c.power === POWER_JOKER) {
+    s.events.push('power:joker');
+  } else if (c.power === POWER_STRIKE) {
+    const zapped = zapViruses(s, p);
+    s.events.push('power:strike');
+    if (zapped.length > 0) s.events.push(`zap:${zapped.join(',')}`);
+  }
+}
+
+/** Bir sonraki kapsülün gücü: ortak tahtada yalnızca joker ya da yıldırım. */
+function rollNextPowerCoop(s: CoopGameState, p: number): number {
+  if (!s.cfg.powerupsEnabled) return 0;
+  s.powerGaps[p]++;
+  if (s.powerGaps[p] < POWER_MIN_GAP) return 0;
+  if (s.powerRng.next() / 4294967296 >= POWER_CHANCE) return 0;
+  s.powerGaps[p] = 0;
+  return s.powerRng.next() / 4294967296 < 0.6 ? POWER_JOKER : POWER_STRIKE;
 }
 
 function spawnCoop(s: CoopGameState, p: number) {
@@ -238,6 +310,8 @@ function spawnCoop(s: CoopGameState, p: number) {
     c = { x: spawnX, y: 0, rot: 0, a: s.nextA[p], b: s.nextB[p] };
     s.nextA[p] = s.rng.int(s.cfg.colors);
     s.nextB[p] = s.rng.int(s.cfg.colors);
+    if (s.nextPowers[p]) c.power = s.nextPowers[p];
+    s.nextPowers[p] = rollNextPowerCoop(s, p);
   }
 
   if (!fitsCoop(s, c, p)) {

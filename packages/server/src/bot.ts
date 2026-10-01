@@ -122,6 +122,7 @@ class BotRunner {
       speed: this.room.config.speed,
       diagMatches: this.room.config.diagMatches,
       counterEnabled: this.room.config.counterEnabled,
+      powerupsEnabled: this.room.config.powerupsEnabled,
       aoeEnabled: this.room.config.aoeEnabled,
       aoeThreshold: this.room.config.aoeThreshold,
       missPenaltyEnabled: this.room.config.missPenaltyEnabled,

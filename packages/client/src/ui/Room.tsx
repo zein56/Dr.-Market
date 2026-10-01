@@ -205,6 +205,18 @@ export default function RoomView({
               </label>
             </div>
 
+            {/* Güçlendiriciler */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+              <label className="field checkbox-field" style={{ margin: 0 }}>
+                <input type="checkbox" checked={cfg.powerupsEnabled !== false} disabled={!isHost}
+                  onChange={e => updateCfg({ powerupsEnabled: e.target.checked })} />
+                <div>
+                  <strong>⚡ Güçlendiriciler</strong>
+                  <p className="hint">Ara sıra özel kapsüller düşer: ⚡ Yıldırım (rakibe 4 çöp), 🛡️ Kalkan (bir saldırıyı emer), 🌈 Joker (en iyi renge dönüşür), ✨ Temizlik (taşları ve kilitleri siler)</p>
+                </div>
+              </label>
+            </div>
+
             {/* Hata Cezası */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
               <label className="field checkbox-field" style={{ margin: 0 }}>

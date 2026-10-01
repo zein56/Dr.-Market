@@ -22,6 +22,9 @@ import {
   SPAWN_Y,
   SpeedSetting,
   isVirus,
+  isStone,
+  hasLock,
+  removeLock,
   addLock,
 } from './constants';
 import {
@@ -38,6 +41,18 @@ import {
   cloneBoard,
 } from './board';
 import { Rng } from './rng';
+import {
+  POWER_STRIKE,
+  POWER_SHIELD,
+  POWER_JOKER,
+  POWER_CLEANSE,
+  POWER_NAMES,
+  POWER_MIN_GAP,
+  POWER_CHANCE,
+  STRIKE_AMOUNT,
+  SHIELD_MAX,
+  pickPower,
+} from './powerups';
 
 export const enum Phase {
   Spawning = 0,
@@ -92,6 +107,9 @@ export interface MatchConfig {
   bombThreshold?: number;
 
   colors: number; // 3..10 (kaç farklı renk kullanılacak)
+
+  /** Güçlendirici kapsüller (bkz. powerups.ts). Verilmezse kapalı. */
+  powerupsEnabled?: boolean;
 }
 
 export interface Capsule {
@@ -103,6 +121,8 @@ export interface Capsule {
   a: number; // birinci yarımın rengi
   b: number; // ikinci yarımın rengi
   isBomb?: boolean;
+  /** Güçlendirici türü (POWER_*). Yoksa normal kapsül. */
+  power?: number;
 }
 
 export interface AttackInfo {
@@ -151,6 +171,17 @@ export interface GameState {
   maxChain: number;
   bombs: number; // 0..3
   bombActive: boolean; // if true, next spawned capsule is a bomb
+
+  /** Güçlendirici programı için ayrı RNG (renk dizisini etkilemez) */
+  powerRng: Rng;
+  /** Bir sonraki kapsülün gücü (0 = yok) */
+  nextPower: number;
+  /** Son güçlü kapsülden beri düşen kapsül sayısı */
+  powerGap: number;
+  /** Emmeye hazır kalkan sayısı */
+  shield: number;
+  /** step() dışında (ör. queueGarbage) oluşan olaylar; bir sonraki adımda events'e taşınır */
+  queuedEvents: string[];
 }
 
 function nextColor(rng: Rng, colors: number): number {
@@ -193,6 +224,11 @@ export function createGame(cfg: MatchConfig): GameState {
     maxChain: 0,
     bombs: 0,
     bombActive: false,
+    powerRng: new Rng((cfg.seed ^ 0x7f4a7c15) >>> 0),
+    nextPower: 0,
+    powerGap: 0,
+    shield: 0,
+    queuedEvents: [],
   };
   return s;
 }
@@ -234,10 +270,98 @@ function fits(board: Board, c: Capsule): boolean {
   );
 }
 
+/** Kapsülün iki yarımını yönüne göre tahtaya yazar. */
+function writeHalves(board: Board, c: Capsule, a: number, b: number) {
+  const [x1, y1, x2, y2] = capsuleCells(c);
+  const horizontal = y1 === y2;
+  if (horizontal) {
+    const leftFirst = x1 < x2;
+    const kindA = leftFirst ? KIND_LEFT : KIND_RIGHT;
+    const kindB = leftFirst ? KIND_RIGHT : KIND_LEFT;
+    set(board, x1, y1, cell(kindA, a));
+    set(board, x2, y2, cell(kindB, b));
+  } else {
+    const firstOnTop = y1 < y2;
+    const kindA = firstOnTop ? KIND_UP : KIND_DOWN;
+    const kindB = firstOnTop ? KIND_DOWN : KIND_UP;
+    set(board, x1, y1, cell(kindA, a));
+    set(board, x2, y2, cell(kindB, b));
+  }
+}
+
+/**
+ * Joker: her iki yarımı da aynı renge çevirerek, yerleştiği anda en çok hücre / virüs
+ * temizleyecek rengi seçer. Hiçbir renk eşleşme üretmiyorsa kapsül özgün renkleriyle kalır.
+ * Eşitlikte en küçük renk numarası seçilir (deterministik).
+ */
+export function jokerColors(s: GameState, c: Capsule): [number, number] {
+  let bestK = -1;
+  let bestScore = 0;
+  for (let k = 0; k < s.cfg.colors; k++) {
+    const trial = cloneBoard(s.board);
+    writeHalves(trial, c, k, k);
+    const m = findMatches(trial, s.cfg);
+    const score = m.cleared.length + m.virusesCleared * 10;
+    if (score > bestScore) {
+      bestScore = score;
+      bestK = k;
+    }
+  }
+  return bestK >= 0 ? [bestK, bestK] : [c.a, c.b];
+}
+
+/** Üretilen saldırıyı bu karenin dışa giden saldırısına ekler. */
+function mergeAttack(s: GameState, atk: AttackInfo) {
+  if (!s.attackOut) s.attackOut = { normal: 0, stone: 0, lock: 0, colors: [] };
+  s.attackOut.normal += atk.normal;
+  s.attackOut.stone += atk.stone;
+  s.attackOut.lock += atk.lock;
+  if (atk.colors) s.attackOut.colors = (s.attackOut.colors || []).concat(atk.colors);
+}
+
+/** Güçlü kapsül yere oturduktan sonra etkisini uygular. a/b: tahtaya yazılan son renkler. */
+function applyPower(s: GameState, power: number, a: number, b: number) {
+  switch (power) {
+    case POWER_STRIKE: {
+      const atk: AttackInfo = { normal: STRIKE_AMOUNT, stone: 0, lock: 0, colors: [a, b, a, b] };
+      if (s.cfg.counterEnabled) {
+        const cancelled = cancelPendingGarbage(s, atk);
+        if (cancelled > 0) s.events.push(`counter:${cancelled}`);
+      }
+      mergeAttack(s, atk);
+      break;
+    }
+    case POWER_SHIELD:
+      s.shield = Math.min(SHIELD_MAX, s.shield + 1);
+      break;
+    case POWER_CLEANSE: {
+      for (let i = 0; i < s.board.length; i++) {
+        const v = s.board[i];
+        if (isStone(v)) {
+          s.board[i] = EMPTY;
+        } else if (hasLock(v)) {
+          let w = v;
+          while (hasLock(w)) w = removeLock(w);
+          s.board[i] = w;
+        }
+      }
+      s.pendingGarbage = [];
+      // taşların altından boşalan parçalar hemen düşsün
+      while (stepGravity(s.board)) { /* yerçekimi oturana kadar */ }
+      break;
+    }
+    case POWER_JOKER:
+      break; // etkisi renk seçimiydi (lockCapsule içinde uygulandı)
+    default:
+      return;
+  }
+  s.events.push(`power:${POWER_NAMES[power]}`);
+}
+
 function lockCapsule(s: GameState) {
   const c = s.capsule;
   if (!c) return;
-  const [x1, y1, x2, y2] = capsuleCells(c);
+  const [x1, y1] = capsuleCells(c);
 
   if (c.isBomb) {
     // Bomba tek hücre — sadece birinci pozisyona yaz
@@ -248,23 +372,25 @@ function lockCapsule(s: GameState) {
     return;
   }
 
-  const horizontal = y1 === y2;
-  if (horizontal) {
-    const leftFirst = x1 < x2;
-    const kindA = leftFirst ? KIND_LEFT : KIND_RIGHT;
-    const kindB = leftFirst ? KIND_RIGHT : KIND_LEFT;
-    set(s.board, x1, y1, cell(kindA, c.a));
-    set(s.board, x2, y2, cell(kindB, c.b));
-  } else {
-    const firstOnTop = y1 < y2;
-    const kindA = firstOnTop ? KIND_UP : KIND_DOWN;
-    const kindB = firstOnTop ? KIND_DOWN : KIND_UP;
-    set(s.board, x1, y1, cell(kindA, c.a));
-    set(s.board, x2, y2, cell(kindB, c.b));
-  }
+  let a = c.a;
+  let b = c.b;
+  if (c.power === POWER_JOKER) [a, b] = jokerColors(s, c);
+  writeHalves(s.board, c, a, b);
+
   s.capsule = null;
   s.capsulesDropped++;
   s.events.push('lock');
+  if (c.power) applyPower(s, c.power, a, b);
+}
+
+/** Bir sonraki kapsülün gücünü belirler (kapalıysa RNG'ye dokunmaz). */
+function rollNextPower(s: GameState): number {
+  if (!s.cfg.powerupsEnabled) return 0;
+  s.powerGap++;
+  if (s.powerGap < POWER_MIN_GAP) return 0;
+  if (s.powerRng.next() / 4294967296 >= POWER_CHANCE) return 0;
+  s.powerGap = 0;
+  return pickPower(s.powerRng.next() / 4294967296);
 }
 
 function spawn(s: GameState) {
@@ -291,6 +417,9 @@ function spawn(s: GameState) {
     };
     s.nextA = nextColor(s.rng, s.cfg.colors);
     s.nextB = nextColor(s.rng, s.cfg.colors);
+    // güç bu kapsüle geçer; bomba kapsülü sırayı tüketmediği için güç bir sonrakine kalır
+    if (s.nextPower) c.power = s.nextPower;
+    s.nextPower = rollNextPower(s);
   }
 
   if (!fits(s.board, c)) {
@@ -404,15 +533,7 @@ function enterClearOrSettle(s: GameState) {
       const cancelled = cancelPendingGarbage(s, newAttack);
       if (cancelled > 0) s.events.push(`counter:${cancelled}`);
     }
-    if (!s.attackOut) {
-      s.attackOut = { normal: 0, stone: 0, lock: 0, colors: [] };
-    }
-    s.attackOut.normal += newAttack.normal;
-    s.attackOut.stone += newAttack.stone;
-    s.attackOut.lock += newAttack.lock;
-    if (newAttack.colors) {
-      s.attackOut.colors = (s.attackOut.colors || []).concat(newAttack.colors);
-    }
+    mergeAttack(s, newAttack);
     s.phase = Phase.Clearing;
     s.phaseTimer = CLEAR_ANIM_FRAMES;
     s.events.push(s.chain > 1 ? 'chain' : 'clear');
@@ -491,6 +612,10 @@ function moveDown(s: GameState): boolean {
 /** Tek bir frame ilerlet. inputs: bu frame'de gelen girdiler. */
 export function step(s: GameState, inputs: Input[]): void {
   s.events.length = 0;
+  if (s.queuedEvents.length > 0) {
+    for (const ev of s.queuedEvents) s.events.push(ev);
+    s.queuedEvents.length = 0;
+  }
   s.attackOut = null;
 
   if (s.phase === Phase.Won || s.phase === Phase.Lost) {
@@ -640,15 +765,20 @@ export function resumeGame(
   virusesLeft: number
 ): GameState {
   const rng = new Rng(((Date.now() ^ frame ^ (Math.random() * 0xffffffff)) >>> 0) || 1);
+  const restored = cloneBoard(board);
   const s: GameState = {
     cfg,
-    board: cloneBoard(board),
+    board: restored,
+    // cols/rows eksikti: kapsül doğuş konumu NaN oluyordu
+    cols: restored.cols,
+    rows: restored.rows,
     frame,
     phase: Phase.Spawning,
     rng,
     capsule: null,
-    nextA: nextColor(rng),
-    nextB: nextColor(rng),
+    // renk sayısı verilmediği için nextA/nextB NaN çıkıyordu
+    nextA: nextColor(rng, cfg.colors),
+    nextB: nextColor(rng, cfg.colors),
     capsulesDropped: 0,
     gravityTimer: 0,
     lockTimer: 0,
@@ -668,6 +798,11 @@ export function resumeGame(
     maxChain: 0,
     bombs: 0,
     bombActive: false,
+    powerRng: new Rng(((Date.now() ^ frame ^ (Math.random() * 0xffffffff)) >>> 0) || 1),
+    nextPower: 0,
+    powerGap: 0,
+    shield: 0,
+    queuedEvents: [],
   };
   return s;
 }
@@ -675,6 +810,13 @@ export function resumeGame(
 /** Rakipten gelen saldırıyı kuyruğa ekle. Kolonlar deterministik RNG ile seçilir. */
 export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
   if (attack.normal <= 0 && attack.stone <= 0 && attack.lock <= 0) return;
+
+  // Kalkan: gelen saldırı paketinin tamamını emer
+  if (s.shield > 0) {
+    s.shield--;
+    s.queuedEvents.push('shield_block'); // step() bir sonraki adımda events'e taşır
+    return;
+  }
   const rng = new Rng(seed);
 
   // Kilit saldırıları anında uygulanır!

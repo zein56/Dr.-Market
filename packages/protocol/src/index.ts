@@ -29,6 +29,9 @@ export interface RoomConfig {
   /** Karşı saldırı: ürettiğin saldırı, bekleyen gelen çöpü önce iptal eder. */
   counterEnabled?: boolean;
 
+  /** Güçlendirici kapsüller: ⚡ yıldırım, 🛡️ kalkan, 🌈 joker, 🧽 temizlik. */
+  powerupsEnabled?: boolean;
+
   aoeEnabled?: boolean;
   aoeThreshold?: number;
 
@@ -143,6 +146,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   detailFanout: 8,
   diagMatches: false,
   counterEnabled: true,
+  powerupsEnabled: true,
   aoeEnabled: false,
   aoeThreshold: 5,
   missPenaltyEnabled: false,

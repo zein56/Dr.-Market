@@ -120,6 +120,7 @@ export default function LocalGame({
       speed: config.speed,
       diagMatches: config.diagMatches,
       counterEnabled: config.counterEnabled,
+      powerupsEnabled: config.powerupsEnabled,
       cols: boardCols,
       rows: boardRows,
       aoeEnabled: config.aoeEnabled,
@@ -383,6 +384,10 @@ export default function LocalGame({
           for (const ev of s1.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s1.chain);
+            } else if (ev.startsWith('power:')) {
+              sfx('power');
+            } else if (ev === 'shield_block') {
+              sfx('shield');
             } else if (ev.startsWith('counter:')) {
               sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
@@ -422,6 +427,10 @@ export default function LocalGame({
           for (const ev of s2.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s2.chain);
+            } else if (ev.startsWith('power:')) {
+              sfx('power');
+            } else if (ev === 'shield_block') {
+              sfx('shield');
             } else if (ev.startsWith('counter:')) {
               sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
@@ -459,6 +468,10 @@ export default function LocalGame({
           for (const ev of s3.events) {
             if (['move', 'rotate', 'lock', 'clear', 'chain', 'virus', 'won', 'lost'].includes(ev)) {
               sfx(ev, s3.chain);
+            } else if (ev.startsWith('power:')) {
+              sfx('power');
+            } else if (ev === 'shield_block') {
+              sfx('shield');
             } else if (ev.startsWith('counter:')) {
               sfx('counter');
             } else if (ev.startsWith('penalty_spawn:')) {
@@ -551,12 +564,12 @@ export default function LocalGame({
       }
 
       const nc1 = next1Ref.current?.getContext('2d');
-      if (nc1) drawNext(nc1, s1.nextA, s1.nextB, next1Ref.current!.width / 2);
+      if (nc1) drawNext(nc1, s1.nextA, s1.nextB, next1Ref.current!.width / 2, s1.nextPower);
       const nc2 = next2Ref.current?.getContext('2d');
-      if (nc2) drawNext(nc2, s2.nextA, s2.nextB, next2Ref.current!.width / 2);
+      if (nc2) drawNext(nc2, s2.nextA, s2.nextB, next2Ref.current!.width / 2, s2.nextPower);
       if (config.p3Enabled && s3) {
         const nc3 = next3Ref.current?.getContext('2d');
-        if (nc3) drawNext(nc3, s3.nextA, s3.nextB, next3Ref.current!.width / 2);
+        if (nc3) drawNext(nc3, s3.nextA, s3.nextB, next3Ref.current!.width / 2, s3.nextPower);
       }
 
       setHud1(h => h.viruses === s1.virusesLeft && h.score === s1.score && h.missCount === s1.missCount && h.bombs === s1.bombs ? h : { viruses: s1.virusesLeft, score: s1.score, missCount: s1.missCount, bombs: s1.bombs });

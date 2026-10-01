@@ -85,6 +85,13 @@ export class Juice {
         this.shake(11, 22);
       } else if (ev.startsWith('explosion:')) {
         this.shake(5, 12);
+      } else if (ev.startsWith('power:')) {
+        this.onPower(ev.slice(6), cols, s.board.length / cols);
+      } else if (ev === 'shield_block') {
+        this.announce('🛡️ ENGELLENDİ', cols, s.board.length / cols, '#4FC3F7', 0.95);
+        this.shake(3, 8);
+      } else if (ev.startsWith('zap:')) {
+        this.onZap(ev.slice(4).split(',').map(Number), cols);
       } else if (ev.startsWith('counter:')) {
         this.onCounter(parseInt(ev.split(':')[1], 10) || 1, cols, s.board.length / cols);
       } else if (ev === 'garbage') {
@@ -145,6 +152,41 @@ export class Juice {
       this.shake(Math.min(2 + chain * 1.6, 10), 8 + Math.min(chain, 6) * 2);
     } else {
       this.shake(1.2, 5);
+    }
+  }
+
+  /** Güçlendirici kullanıldı: adını göster. */
+  private onPower(name: string, cols: number, rows: number) {
+    const info: Record<string, [string, string]> = {
+      strike: ['⚡ YILDIRIM!', '#FFE600'],
+      shield: ['🛡️ KALKAN', '#4FC3F7'],
+      joker: ['🌈 JOKER', '#FF8AD8'],
+      cleanse: ['✨ TEMİZLİK', '#5CFFE0'],
+    };
+    const [text, color] = info[name] ?? [name.toUpperCase(), '#FFFFFF'];
+    this.announce(text, cols, rows, color, 1.0);
+    this.shake(name === 'strike' ? 6 : 2.5, name === 'strike' ? 14 : 8);
+  }
+
+  /** Ortak tahtada yıldırım: vurulan virüslerde elektrik kıvılcımları. */
+  private onZap(cells: number[], cols: number) {
+    if (this.reduced) return;
+    for (const idx of cells) {
+      if (!Number.isFinite(idx)) continue;
+      const x = (idx % cols) + 0.5;
+      const y = Math.floor(idx / cols) + 0.5;
+      for (let k = 0; k < 12; k++) {
+        const a = Math.random() * Math.PI * 2;
+        this.addParticle({
+          x, y,
+          vx: Math.cos(a) * 0.22,
+          vy: Math.sin(a) * 0.22,
+          life: 0,
+          max: 20 + Math.floor(Math.random() * 10),
+          size: 0.1,
+          color: k % 2 ? '#FFE600' : '#FFFFFF',
+        });
+      }
     }
   }
 

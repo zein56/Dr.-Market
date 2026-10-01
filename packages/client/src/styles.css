@@ -31,7 +31,7 @@ body,
 }
 
 body {
-  background: radial-gradient(120% 80% at 50% 0%, #143040 0%, var(--bg) 60%);
+  background: radial-gradient(120% 80% at 50% 0%, var(--bg-glow, #143040) 0%, var(--bg) 60%);
   color: var(--ink);
   font-family: var(--body);
   font-size: 15px;
@@ -846,6 +846,56 @@ input {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.theme-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.theme-picker-label {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-right: 2px;
+}
+
+.theme-pill {
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.theme-pill:hover {
+  transform: translateY(-1px);
+}
+
+.theme-pill.on {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .theme-pill-text {
+    display: none;
+  }
+  .theme-pill.on .theme-pill-text {
+    display: inline;
+  }
 }
 
 .target-row {

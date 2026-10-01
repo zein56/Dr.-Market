@@ -247,6 +247,7 @@ export function sanitizeConfig(base: RoomConfig, c: any): RoomConfig {
     colors: num(c.colors, 3, 10, base.colors),
     diagMatches: bool(c.diagMatches, base.diagMatches),
     counterEnabled: bool(c.counterEnabled, base.counterEnabled),
+    powerupsEnabled: bool(c.powerupsEnabled, base.powerupsEnabled),
     bombEnabled: bool(c.bombEnabled, base.bombEnabled),
     bombThreshold: num(c.bombThreshold, 4, 8, base.bombThreshold ?? 5),
     aoeEnabled: bool(c.aoeEnabled, base.aoeEnabled),

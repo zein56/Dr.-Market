@@ -3,6 +3,7 @@ import type { LocalConfig } from './LocalSetup';
 import { createCoopGame, stepCoop, type CoopGameState } from '@pill/game-core';
 import { Input, Phase } from '@pill/game-core';
 import { drawBoard, drawNext, type VisualEffect } from '../game/render';
+import { Juice } from '../game/juice';
 import { createGamepadState, pollGamepad, manuallyAssignGamepad, getAssignedGamepadIndex, getAllConnectedGamepads } from '../game/gamepad';
 import { createBotState, stepBot, type BotDifficulty } from '../game/bot';
 import { startMusic, stopMusic, pauseMusic, resumeMusic, sfx } from '../game/audio';
@@ -29,6 +30,7 @@ export default function LocalCoopGame({
 
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const juiceRef = useRef(new Juice());
 
   const next1Ref = useRef<HTMLCanvasElement>(null);
   const next2Ref = useRef<HTMLCanvasElement>(null);
@@ -220,6 +222,13 @@ export default function LocalCoopGame({
           stepCoop(s, inputsArr);
           frameCountRef.current++;
 
+          // efektler + sesler (ortak tahtada da diğer modlarla aynı geri bildirim)
+          juiceRef.current.handle(s, s.cols);
+          for (const ev of s.events) {
+            if (ev === 'clear' || ev === 'chain' || ev === 'virus') sfx(ev, s.chain);
+            else if (ev.startsWith('power:')) sfx('power');
+          }
+
           if (!endedRef.current) {
             if (s.phase === Phase.Won) {
               setOutcome('won');
@@ -241,19 +250,22 @@ export default function LocalCoopGame({
           const ctx = c.getContext('2d');
           if (ctx) {
             const cell = c.clientWidth / cols;
+            juiceRef.current.update();
             drawBoard(ctx, s.board, { cols, rows: s.rows, cellSize: cell, clearing: s.clearing, clearPulse: s.phaseTimer }, s);
+            juiceRef.current.draw(ctx, cell, cols);
+            juiceRef.current.applyShake(c);
           }
         }
 
         const nc1 = next1Ref.current?.getContext('2d');
-        if (nc1) drawNext(nc1, s.nextA[0], s.nextB[0], next1Ref.current!.width / 2);
+        if (nc1) drawNext(nc1, s.nextA[0], s.nextB[0], next1Ref.current!.width / 2, s.nextPowers[0]);
         
         const nc2 = next2Ref.current?.getContext('2d');
-        if (nc2) drawNext(nc2, s.nextA[1], s.nextB[1], next2Ref.current!.width / 2);
+        if (nc2) drawNext(nc2, s.nextA[1], s.nextB[1], next2Ref.current!.width / 2, s.nextPowers[1]);
         
         if (config.p3Enabled) {
           const nc3 = next3Ref.current?.getContext('2d');
-          if (nc3) drawNext(nc3, s.nextA[2], s.nextB[2], next3Ref.current!.width / 2);
+          if (nc3) drawNext(nc3, s.nextA[2], s.nextB[2], next3Ref.current!.width / 2, s.nextPowers[2]);
         }
 
         setHud1(h => h.score === s.scores[0] && h.bombs === s.bombs[0] ? h : { score: s.scores[0], bombs: s.bombs[0] });

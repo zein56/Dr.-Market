@@ -128,6 +128,7 @@ export default function Game({
       speed: match.config.speed,
       diagMatches: match.config.diagMatches,
       counterEnabled: match.config.counterEnabled,
+      powerupsEnabled: match.config.powerupsEnabled,
       aoeEnabled: match.config.aoeEnabled,
       aoeThreshold: match.config.aoeThreshold,
       missPenaltyEnabled: match.config.missPenaltyEnabled,
@@ -360,6 +361,10 @@ export default function Game({
           if (ev === 'move' || ev === 'rotate' || ev === 'lock' || ev === 'clear' ||
             ev === 'chain' || ev === 'virus' || ev === 'won' || ev === 'lost') {
             sfx(ev, s.chain);
+          } else if (ev.startsWith('power:')) {
+            sfx('power');
+          } else if (ev === 'shield_block') {
+            sfx('shield');
           } else if (ev.startsWith('counter:')) {
             sfx('counter');
           } else if (ev.startsWith('penalty_spawn:')) {
@@ -444,7 +449,7 @@ export default function Game({
       juiceRef.current.applyShake(canvas);
 
       const nc = nextRef.current?.getContext('2d');
-      if (nc) drawNext(nc, s.nextA, s.nextB, nextRef.current!.width / 2);
+      if (nc) drawNext(nc, s.nextA, s.nextB, nextRef.current!.width / 2, s.nextPower);
 
       setHud((h) =>
         h.viruses === s.virusesLeft && h.score === s.score && h.chain === s.chain && h.missCount === s.missCount && h.bombs === s.bombs

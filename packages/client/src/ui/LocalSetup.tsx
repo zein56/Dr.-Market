@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { sfx } from '../game/audio';
+import ThemePicker from './ThemePicker';
 import { getAllConnectedGamepads, manuallyAssignGamepad, getAssignedGamepadIndex } from '../game/gamepad';
 import type { BotDifficulty } from '../game/bot';
 
@@ -22,6 +23,7 @@ export interface LocalConfig {
   aoeThreshold: number;
 
   counterEnabled: boolean;
+  powerupsEnabled: boolean;
 
   missPenaltyEnabled: boolean;
   missPenaltyThreshold: number;
@@ -83,6 +85,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
   const [missPenaltyEnabled, setMissPenaltyEnabled] = useState(saved.missPenaltyEnabled ?? false);
   const [counterEnabled, setCounterEnabled] = useState(saved.counterEnabled ?? true);
+  const [powerupsEnabled, setPowerupsEnabled] = useState(saved.powerupsEnabled ?? true);
   const [missPenaltyThreshold, setMissPenaltyThreshold] = useState(saved.missPenaltyThreshold ?? 3);
 
   const [normalAttackEnabled, setNormalAttackEnabled] = useState(saved.normalAttackEnabled ?? false);
@@ -103,7 +106,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
       p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-      counterEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+      counterEnabled, powerupsEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
       lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
@@ -111,7 +114,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
     }));
   }, [
     p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-    counterEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+    counterEnabled, powerupsEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
     normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
     stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
     lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
@@ -158,6 +161,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       p3IsBot,
       p3BotDifficulty,
       counterEnabled,
+      powerupsEnabled,
       diagMatches,
       bombEnabled, bombThreshold,
       aoeEnabled, aoeThreshold,
@@ -176,6 +180,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   return (
     <div className="local-setup">
       <h1 className="local-setup-title">Yerel 2 Oyuncu</h1>
+      <ThemePicker />
       <p className="local-setup-sub">
         Tek cihazda iki kişi veya bir bot ile oynayın.<br />
         4'lü zincir yaptığınızda rakibinize çöp kapsülü gönderirsiniz.
@@ -542,6 +547,16 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
               <input type="range" min={5} max={8} value={aoeThreshold} onChange={e => setAoeThreshold(Number(e.target.value))} />
             </label>
           )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
+          <label className="field checkbox-field" style={{ margin: 0 }}>
+            <input type="checkbox" checked={powerupsEnabled} onChange={e => setPowerupsEnabled(e.target.checked)} />
+            <div>
+              <strong>⚡ Güçlendiriciler</strong>
+              <p className="hint">Ara sıra özel kapsüller düşer: ⚡ Yıldırım, 🛡️ Kalkan, 🌈 Joker, ✨ Temizlik (ortak tahtada: Yıldırım 3 virüsü yok eder, Joker aynı)</p>
+            </div>
+          </label>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>

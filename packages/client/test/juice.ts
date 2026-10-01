@@ -90,5 +90,27 @@ console.log('\nJuice');
   check('announce ile bilgi yazısı gösterilir', draws > 0);
 }
 
+{
+  // güçlendirici olayları
+  for (const name of ['strike', 'shield', 'joker', 'cleanse', 'bilinmeyen']) {
+    const j = new Juice();
+    draws = 0;
+    j.handle({ events: ['power:' + name], clearing: [], board, chain: 0 }, COLS);
+    j.update(); j.draw(fakeCtx, 30, COLS);
+    check(`power:${name} yazısı çizilir`, draws > 0);
+  }
+  const j = new Juice();
+  const c: any = { style: { transform: '' } };
+  draws = 0;
+  j.handle({ events: ['shield_block'], clearing: [], board, chain: 0 }, COLS);
+  j.update(); j.draw(fakeCtx, 30, COLS); j.applyShake(c);
+  check('kalkan engelleyince yazı + sarsıntı', draws > 0 && c.style.transform.startsWith('translate('));
+  const z = new Juice();
+  draws = 0;
+  z.handle({ events: ['zap:3,20,NaN'], clearing: [], board, chain: 0 }, COLS);
+  z.update(); z.draw(fakeCtx, 30, COLS);
+  check('zap: kıvılcımlar çizilir, bozuk indeks çökertmez', draws > 0);
+}
+
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
 if (fail > 0) process.exit(1);

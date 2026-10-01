@@ -26,6 +26,22 @@ import {
   virusCount,
   virusTopRow,
   cancelPendingGarbage,
+  resumeGame,
+  createCoopGame,
+  stepCoop,
+  POWER_STRIKE,
+  POWER_SHIELD,
+  POWER_JOKER,
+  POWER_CLEANSE,
+  POWER_MIN_GAP,
+  SHIELD_MAX,
+  STRIKE_AMOUNT,
+  KIND_STONE,
+  addLock,
+  hasLock,
+  isStone,
+  kindOf,
+  colorOf,
 } from '../src/index';
 
 let pass = 0;
@@ -350,6 +366,244 @@ console.log('\nKarşı saldırı');
   check('açıkken: saldırı gelen çöpü azaltır, rakibe gitmez', on.out === 0 && on.pending === 2 && on.ev === 'counter:1', JSON.stringify(on));
   const off = run(false);
   check('kapalıyken: eski davranış (rakibe gider, çöp kalır)', off.out === 1 && off.pending === 3 && !off.ev, JSON.stringify(off));
+}
+
+// --- Güçlendirici kapsüller ---
+console.log('\nGüçlendiriciler');
+{
+  const cfgBase = { seed: 777, level: 1, speed: 'low' as const, colors: 3 };
+
+  // N kapsül doğur; her doğuşta tahtayı boşaltıp (oyun kaybedilmesin) gücü ve renkleri kaydet
+  const collect = (powerupsEnabled: boolean, n: number) => {
+    const g = createGame({ ...cfgBase, powerupsEnabled });
+    g.virusesLeft = 999;
+    const out: { a: number; b: number; power: number }[] = [];
+    for (let i = 0; i < 200000 && out.length < n; i++) {
+      step(g, g.phase === Phase.Falling && g.capsule ? [Input.HardDrop] : []);
+      if (g.events.includes('spawn') && g.capsule) {
+        out.push({ a: g.capsule.a, b: g.capsule.b, power: g.capsule.power ?? 0 });
+        g.board.fill(0);
+      }
+    }
+    return out;
+  };
+
+  const on1 = collect(true, 120);
+  const on2 = collect(true, 120);
+  const off = collect(false, 120);
+  check('120 kapsül doğdu', on1.length === 120 && off.length === 120);
+  check('aynı tohum → aynı güç programı (herkes aynı güçleri alır)', JSON.stringify(on1) === JSON.stringify(on2));
+  check('kapalıyken hiç güçlü kapsül çıkmaz', off.every((x) => x.power === 0));
+  const idx = on1.map((x, i) => (x.power ? i : -1)).filter((i) => i >= 0);
+  check('açıkken güçlü kapsüller çıkar', idx.length >= 4, `adet=${idx.length}`);
+  let gapOk = true;
+  for (let i = 1; i < idx.length; i++) if (idx[i] - idx[i - 1] < POWER_MIN_GAP) gapOk = false;
+  check('iki güçlü kapsül arasında en az ' + POWER_MIN_GAP + ' kapsül var', gapOk, JSON.stringify(idx));
+  check('güçler 1..4 aralığında', on1.every((x) => x.power >= 0 && x.power <= 4));
+  check('güç programı normal renk dizisini değiştirmez', on1.every((x, i) => x.a === off[i].a && x.b === off[i].b));
+
+  // Belirli bir kapsülü yerine koyup indir: { yatay kapsül, x=3, y=15 (en alt) }
+  const drop = (g: any, power: number | undefined, a = 0, b = 1, x = 3, y = 15) => {
+    g.capsule = { x, y, rot: 0, a, b, ...(power ? { power } : {}) };
+    g.phase = Phase.Falling;
+    step(g, [Input.HardDrop]);
+    return g;
+  };
+  const fresh = (extra: any = {}) => {
+    const g = createGame({ ...cfgBase, powerupsEnabled: true, ...extra });
+    g.board.fill(0);
+    g.virusesLeft = 999;
+    return g;
+  };
+
+  { // Joker
+    const mkRow = () => {
+      const g = fresh();
+      for (let x = 0; x < 3; x++) g.board[15 * COLS + x] = cell(KIND_SINGLE, 2);
+      return g;
+    };
+    const plain = drop(mkRow(), undefined);
+    check('joker olmadan (0,1 renkli kapsül) mavi sıraya eşleşmez', plain.phase !== Phase.Clearing);
+    const j = drop(mkRow(), POWER_JOKER);
+    check('joker: komşuya uyan renge dönüşüp 5\'li temizler', j.phase === Phase.Clearing && j.clearing.length === 5, `faz=${j.phase} temizlenen=${j.clearing.length}`);
+    check('joker: "power:joker" olayı', j.events.includes('power:joker'));
+    const lone = drop(fresh(), POWER_JOKER);
+    check('joker: hiçbir renk eşleşmiyorsa özgün renkler korunur', colorOf(lone.board[15 * COLS + 3]) === 0 && colorOf(lone.board[15 * COLS + 4]) === 1);
+  }
+  { // Yıldırım
+    const g = drop(fresh({ counterEnabled: false }), POWER_STRIKE);
+    check('yıldırım: ' + STRIKE_AMOUNT + ' çöp gönderir', g.attackOut?.normal === STRIKE_AMOUNT && g.events.includes('power:strike'));
+    const c = fresh({ counterEnabled: true });
+    queueGarbage(c, { normal: 3, stone: 0, lock: 0 }, 5);
+    drop(c, POWER_STRIKE);
+    const left = c.pendingGarbage.reduce((n: number, x: any) => n + x.columns.length, 0);
+    check('yıldırım + karşı saldırı: önce bekleyen çöpü siler, fazlası gider', left === 0 && c.attackOut?.normal === STRIKE_AMOUNT - 3 && c.events.includes('counter:3'), JSON.stringify({ left, out: c.attackOut }));
+  }
+  { // Kalkan
+    const g = drop(fresh(), POWER_SHIELD);
+    check('kalkan: oturunca +1', g.shield === 1 && g.events.includes('power:shield'));
+    queueGarbage(g, { normal: 5, stone: 2, lock: 1 }, 9);
+    check('kalkan: gelen saldırı paketini tamamen emer', g.pendingGarbage.length === 0 && g.shield === 0);
+    step(g, []);
+    check('kalkan: "shield_block" olayı bir sonraki adımda görünür', g.events.includes('shield_block'));
+    queueGarbage(g, { normal: 2, stone: 0, lock: 0 }, 9);
+    check('kalkan: ikinci saldırı normal işlenir', g.pendingGarbage.length === 1);
+    const two = fresh();
+    for (let i = 0; i < 5; i++) drop(two, POWER_SHIELD, 0, 1, 3, 15 - 2 * i);
+    check('kalkan en fazla ' + SHIELD_MAX + ' birikir', two.shield === SHIELD_MAX, `shield=${two.shield}`);
+  }
+  { // Temizlik
+    const g = fresh();
+    g.board[15 * COLS + 0] = cell(KIND_STONE, 0);
+    g.board[14 * COLS + 0] = cell(KIND_SINGLE, 1);          // taşın üstündeki parça
+    g.board[15 * COLS + 6] = addLock(cell(KIND_VIRUS, 2));  // kilitli virüs
+    queueGarbage(g, { normal: 4, stone: 0, lock: 0 }, 3);
+    drop(g, POWER_CLEANSE, 0, 1, 2, 15);
+    let stones = 0;
+    for (let i = 0; i < g.board.length; i++) if (isStone(g.board[i])) stones++;
+    check('temizlik: taşlar kalkar', stones === 0);
+    check('temizlik: kilit kalkar, virüs yerinde kalır', !hasLock(g.board[15 * COLS + 6]) && kindOf(g.board[15 * COLS + 6]) === KIND_VIRUS);
+    check('temizlik: taşın üstündeki parça düşer', g.board[15 * COLS + 0] !== 0 && g.board[14 * COLS + 0] === 0);
+    check('temizlik: bekleyen çöp silinir', g.pendingGarbage.length === 0);
+  }
+  { // Yeniden bağlanma (resumeGame) — eskiden NaN renk/konum üretiyordu
+    const src = createGame({ ...cfgBase });
+    const r = resumeGame({ ...cfgBase } as any, src.board, 600, 120, src.virusesLeft);
+    check('resumeGame: cols/rows doğru', r.cols === src.board.cols && r.rows === src.board.rows);
+    check('resumeGame: sıradaki renkler geçerli sayı', Number.isInteger(r.nextA) && Number.isInteger(r.nextB) && r.nextA < 3 && r.nextB < 3, `${r.nextA},${r.nextB}`);
+    let spawned = false;
+    for (let i = 0; i < 100 && !spawned; i++) { step(r, []); spawned = !!r.capsule; }
+    check('resumeGame: kapsül geçerli konumda doğar', spawned && Number.isFinite(r.capsule!.x) && r.capsule!.x >= 0 && Number.isInteger(r.capsule!.a));
+  }
+}
+
+// --- Ortak tahta (co-op) güçlendiricileri ---
+console.log('\nOrtak tahta güçlendiricileri');
+{
+  const cfg = { seed: 99, level: 1, speed: 'low' as const, colors: 3, powerupsEnabled: true };
+  const mk = () => {
+    const g = createCoopGame({ ...cfg }, 2);
+    g.board.fill(0);
+    g.virusesLeft = 999;
+    return g;
+  };
+  const dropCoop = (g: any, power: number | undefined, x: number, a = 0, b = 1) => {
+    g.capsules[0] = { x, y: g.rows - 1, rot: 0, a, b, ...(power ? { power } : {}) };
+    stepCoop(g, [[Input.HardDrop], []]);
+    return g;
+  };
+
+  { // Joker
+    const g = mk();
+    for (let x = 0; x < 3; x++) g.board[(g.rows - 1) * g.cols + x] = cell(KIND_SINGLE, 2);
+    dropCoop(g, POWER_JOKER, 3);
+    check('co-op joker: komşu renge uyup temizler', g.phase === Phase.Clearing && g.clearing.length === 5 && g.events.includes('power:joker'), `faz=${g.phase} temizlenen=${g.clearing.length}`);
+  }
+  { // Yıldırım (virüs avcısı)
+    const g = mk();
+    const base = (g.rows - 1) * g.cols;
+    for (const x of [0, 5, 9, 12, 15]) g.board[base + x] = cell(KIND_VIRUS, x % 3);
+    g.virusesLeft = 5;
+    dropCoop(g, POWER_STRIKE, 1);
+    let left = 0;
+    for (let i = 0; i < g.board.length; i++) if (kindOf(g.board[i]) === KIND_VIRUS && g.board[i] !== 0) left++;
+    check('co-op yıldırım: 3 virüsü yok eder', left === 2 && g.virusesLeft === 2 && g.events.some((e: string) => e.startsWith('zap:')), `kalan=${left} sayaç=${g.virusesLeft}`);
+  }
+  { // Son virüsleri yok edince oyun kazanılır
+    const g = mk();
+    const base = (g.rows - 1) * g.cols;
+    for (const x of [0, 6, 12]) g.board[base + x] = cell(KIND_VIRUS, 1);
+    g.virusesLeft = 3;
+    dropCoop(g, POWER_STRIKE, 2);
+    check('co-op yıldırım: son virüsler gidince oyun kazanılır', g.phase === Phase.Won && g.virusesLeft === 0, `faz=${g.phase} sayaç=${g.virusesLeft}`);
+  }
+  { // Program: kapalıyken hiç, açıkken zaman zaman
+    const run = (enabled: boolean) => {
+      const g = createCoopGame({ ...cfg, powerupsEnabled: enabled }, 2);
+      g.virusesLeft = 999;
+      const powers: number[] = [];
+      for (let i = 0; i < 300000 && powers.length < 150; i++) {
+        stepCoop(g, [[Input.HardDrop], [Input.HardDrop]]);
+        for (let p = 0; p < 2; p++) {
+          const c = g.capsules[p];
+          if (c && g.events.includes(`spawn:p${p}`)) powers.push(c.power ?? 0);
+        }
+        g.board.fill(0);
+      }
+      return powers;
+    };
+    const off = run(false), on = run(true);
+    check('co-op: kapalıyken güçlü kapsül yok', off.length >= 100 && off.every((x) => x === 0));
+    check('co-op: açıkken yalnızca joker/yıldırım çıkar', on.some((x) => x > 0) && on.every((x) => x === 0 || x === POWER_JOKER || x === POWER_STRIKE), JSON.stringify(on.filter(Boolean)));
+  }
+}
+
+// --- Rastgele oyun (fuzz): bozuk durum ve çökme taraması ---
+console.log('\nRastgele oyunlar (fuzz)');
+{
+  // küçük, tohumlu rastgele sayı üreteci (testin kendi girdileri için)
+  const mulberry = (a: number) => () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const ALL = [Input.Left, Input.Right, Input.RotateCW, Input.RotateCCW, Input.SoftDropOn, Input.SoftDropOff, Input.HardDrop];
+
+  const play = (seed: number, frames: number) => {
+    const rnd = mulberry(seed);
+    const g = createGame({
+      seed, level: (seed % 12) + 1, speed: (['low', 'med', 'hi'] as const)[seed % 3], colors: 3 + (seed % 8),
+      powerupsEnabled: true, counterEnabled: seed % 2 === 0, bombEnabled: true, aoeEnabled: seed % 3 === 0,
+      missPenaltyEnabled: seed % 4 === 0, normalAttackEnabled: true, stoneAttackEnabled: true, lockAttackEnabled: true,
+    } as any);
+    let bad = '';
+    let powersUsed = 0, shieldBlocks = 0, counters = 0, attacks = 0;
+    const kinds: Record<string, number> = {};
+    for (let f = 0; f < frames && !isOver(g) && !bad; f++) {
+      const inputs: Input[] = [];
+      if (rnd() < 0.35) inputs.push(ALL[(rnd() * ALL.length) | 0]);
+      if (f % 97 === 0) {
+        // dışarıdan gelen saldırı paketi (bazen kalkana çarpar)
+        queueGarbage(g, { normal: 1 + ((rnd() * 4) | 0), stone: rnd() < 0.2 ? 1 : 0, lock: rnd() < 0.1 ? 1 : 0 }, (rnd() * 1e9) | 0);
+      }
+      step(g, inputs);
+      for (const e of g.events) {
+        if (e.startsWith('power:')) { powersUsed++; kinds[e] = (kinds[e] || 0) + 1; }
+        if (e === 'shield_block') shieldBlocks++;
+        if (e.startsWith('counter:')) counters++;
+      }
+      if (g.attackOut) attacks += g.attackOut.normal + g.attackOut.stone + g.attackOut.lock;
+
+      // değişmezler
+      const c = g.capsule;
+      if (c && !(Number.isFinite(c.x) && Number.isFinite(c.y) && Number.isInteger(c.a) && Number.isInteger(c.b) && c.a >= 0 && c.b >= 0 && c.a < g.cfg.colors && c.b < g.cfg.colors)) bad = `kapsül bozuk f=${f} ${JSON.stringify(c)}`;
+      if (g.shield < 0 || g.shield > SHIELD_MAX || !Number.isInteger(g.shield)) bad = `kalkan=${g.shield} f=${f}`;
+      if (!Number.isInteger(g.nextA) || !Number.isInteger(g.nextB)) bad = `next NaN f=${f}`;
+      if (g.virusesLeft < 0) bad = `virusesLeft<0 f=${f}`;
+      for (let i = 0; i < g.board.length; i++) { const v = g.board[i]; if (!Number.isInteger(v) || v < 0 || v > 255) { bad = `tahta bozuk i=${i} v=${v}`; break; } }
+      for (const pg of g.pendingGarbage) if (pg.columns.length !== pg.colors.length) { bad = `bekleyen çöp uyumsuz f=${f}`; break; }
+    }
+    return { g, bad, powersUsed, shieldBlocks, counters, attacks, kinds };
+  };
+
+  let bad = '', totalPowers = 0, totalBlocks = 0, totalCounters = 0, games = 0;
+  const kindTotals: Record<string, number> = {};
+  for (let seed = 1; seed <= 150 && !bad; seed++) {
+    const r = play(seed, 6000);
+    bad = r.bad ? `tohum ${seed}: ${r.bad}` : '';
+    totalPowers += r.powersUsed; totalBlocks += r.shieldBlocks; totalCounters += r.counters; games++;
+    for (const [k, v] of Object.entries(r.kinds)) kindTotals[k] = (kindTotals[k] || 0) + v;
+  }
+  check('150 rastgele oyun (6000 kare): hiç bozuk durum yok', !bad, bad);
+  check('fuzz dört güçlendiricinin her birini de tetikledi', ['strike', 'shield', 'joker', 'cleanse'].every((k) => (kindTotals['power:' + k] || 0) > 0), JSON.stringify(kindTotals));
+  check('fuzz kalkan engellemesini ve karşı saldırıyı da tetikledi', totalBlocks > 0 && totalCounters > 0, `engel=${totalBlocks} karşı=${totalCounters}`);
+
+  // determinizm: aynı tohum + aynı girdi → birebir aynı son durum (güçlendiriciler açıkken)
+  const sig = (g: any) => JSON.stringify([g.frame, g.phase, g.score, g.virusesLeft, g.shield, g.nextPower, Array.from(g.board)]);
+  let same = true;
+  for (const seed of [7, 21, 88]) if (sig(play(seed, 3000).g) !== sig(play(seed, 3000).g)) same = false;
+  check('güçlendiricili oyun aynı girdiyle birebir aynı sonuçlanır', same);
 }
 
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
