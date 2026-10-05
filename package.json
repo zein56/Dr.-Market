@@ -11,6 +11,7 @@
     "dev:client": "npm run dev -w @pill/client",
     "build": "npm run build -w @pill/client",
     "db:init": "mysql -u root -p < packages/server/sql/schema.sql",
+<<<<<<< HEAD
     "test:core": "tsx packages/game-core/test/determinism.ts",
     "test:juice": "tsx packages/client/test/juice.ts",
     "test:local": "tsx packages/client/test/local.ts",
@@ -20,6 +21,9 @@
     "test:server": "tsx packages/server/test/targeting.ts",
     "test:e2e": "node packages/server/test/e2e.mjs",
     "test": "npm run test:core && npm run test:coop && npm run test:server && npm run test:juice && npm run test:local && npm run test:components && npm run test:render"
+=======
+    "test:core": "tsx packages/game-core/test/determinism.ts"
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   },
   "devDependencies": {
     "concurrently": "^9.0.1",

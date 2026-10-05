@@ -24,6 +24,7 @@ import {
   encodeBoard,
   decodeBoard,
   virusCount,
+<<<<<<< HEAD
   virusTopRow,
   cancelPendingGarbage,
   resumeGame,
@@ -49,6 +50,8 @@ import {
   findMatches,
   normalizePowerFreq,
   powerFreqParams,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 } from '../src/index';
 
 let pass = 0;
@@ -86,6 +89,7 @@ console.log('\nRNG');
 }
 
 // --- 2. Virüs yerleştirme ---
+<<<<<<< HEAD
 // Motor, tahtanın en fazla %70'ini doldurur (yüksek seviyelerde virusCount'tan az olabilir).
 function expectedViruses(level: number): number {
   const top = Math.max(1, Math.min(ROWS - 2, Math.floor(ROWS * (virusTopRow(level) / 16))));
@@ -106,6 +110,23 @@ console.log('\nVirüs yerleştirme');
   check('aynı seed aynı virüs dizilimi', encodeBoard(g1.board) === encodeBoard(g2.board));
 
   const g3 = createGame({ seed: 1000, level: 10, speed: 'med', colors: 3 });
+=======
+console.log('\nVirüs yerleştirme');
+{
+  for (const level of [0, 5, 10, 15, 20]) {
+    const g = createGame({ seed: 4242, level, speed: 'med' });
+    const n = countViruses(g.board);
+    check(
+      `seviye ${level}: ${virusCount(level)} virüs istendi, ${n} kondu`,
+      n === virusCount(level)
+    );
+  }
+  const g1 = createGame({ seed: 999, level: 10, speed: 'med' });
+  const g2 = createGame({ seed: 999, level: 10, speed: 'med' });
+  check('aynı seed aynı virüs dizilimi', encodeBoard(g1.board) === encodeBoard(g2.board));
+
+  const g3 = createGame({ seed: 1000, level: 10, speed: 'med' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   check('farklı seed farklı dizilim', encodeBoard(g1.board) !== encodeBoard(g3.board));
 
   // başlangıçta hazır eşleşme olmamalı
@@ -189,7 +210,11 @@ console.log('\nSimülasyon determinizmi');
   }
 
   const runOnce = () => {
+<<<<<<< HEAD
     const g = createGame({ seed: 8888, level: 8, speed: 'med', colors: 3 });
+=======
+    const g = createGame({ seed: 8888, level: 8, speed: 'med' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     let ii = 0;
     for (let f = 0; f < 6000; f++) {
       const batch: Input[] = [];
@@ -219,7 +244,11 @@ console.log('\nSimülasyon determinizmi');
 console.log('\nOyun akışı');
 {
   // hiç girdi verilmezse şişe dolar ve oyun biter
+<<<<<<< HEAD
   const g = createGame({ seed: 555, level: 0, speed: 'hi', colors: 3 });
+=======
+  const g = createGame({ seed: 555, level: 0, speed: 'hi' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   let f = 0;
   while (!isOver(g) && f < 60 * 60 * 6) {
     step(g, []);
@@ -228,7 +257,11 @@ console.log('\nOyun akışı');
   check('girdisiz oyun eninde sonunda biter', isOver(g), `${f} frame`);
 
   // Kurgulanmış senaryo: dikeyde 3 kırmızı virüs + üstüne 1 kırmızı yarım = 4lü
+<<<<<<< HEAD
   const g2 = createGame({ seed: 77, level: 2, speed: 'low', colors: 3 });
+=======
+  const g2 = createGame({ seed: 77, level: 2, speed: 'low' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   g2.board.fill(0);
   for (let y = 13; y <= 15; y++) g2.board[y * COLS + 0] = cell(KIND_VIRUS, 0);
   g2.virusesLeft = 3;
@@ -253,7 +286,11 @@ console.log('\nOyun akışı');
   check('virüs bitince oyun kazanılır', g2.phase === Phase.Won || g2.virusesLeft === 0);
 
   // Saldırı üretimi: aynı anda iki dizi patlarsa çöp yollanır
+<<<<<<< HEAD
   const g4 = createGame({ seed: 5, level: 1, speed: 'low', colors: 3 });
+=======
+  const g4 = createGame({ seed: 5, level: 1, speed: 'low' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   g4.board.fill(0);
   for (let x = 0; x < 4; x++) g4.board[15 * COLS + x] = cell(KIND_SINGLE, 0);
   for (let x = 0; x < 4; x++) g4.board[14 * COLS + x] = cell(KIND_SINGLE, 1);
@@ -263,13 +300,21 @@ console.log('\nOyun akışı');
   let atk = 0;
   for (let i = 0; i < 200; i++) {
     step(g4, []);
+<<<<<<< HEAD
     if (g4.attackOut) atk += g4.attackOut.normal + g4.attackOut.stone + g4.attackOut.lock;
+=======
+    atk += g4.attackOut;
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     if (g4.phase === Phase.Spawning || isOver(g4)) break;
   }
   check('eşzamanlı iki dizi saldırı üretir', atk > 0, `${atk} çöp`);
 
   // virüs sayısı asla artmaz
+<<<<<<< HEAD
   const g3 = createGame({ seed: 246, level: 6, speed: 'med', colors: 3 });
+=======
+  const g3 = createGame({ seed: 246, level: 6, speed: 'med' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const start = g3.virusesLeft;
   let maxSeen = start;
   for (let i = 0; i < 3000 && !isOver(g3); i++) {
@@ -282,8 +327,13 @@ console.log('\nOyun akışı');
 // --- 7. Çöp kapsül ---
 console.log('\nSaldırı');
 {
+<<<<<<< HEAD
   const g = createGame({ seed: 4, level: 3, speed: 'med', colors: 3 });
   queueGarbage(g, { normal: 4, stone: 0, lock: 0 }, 999);
+=======
+  const g = createGame({ seed: 4, level: 3, speed: 'med' });
+  queueGarbage(g, 4, 999);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   check('çöp kuyruğa girer', g.pendingGarbage.length === 1 && g.pendingGarbage[0].columns.length === 4);
 
   const before = g.board.reduce((n, c) => n + (c ? 1 : 0), 0);
@@ -295,8 +345,13 @@ console.log('\nSaldırı');
   check('çöp tahtaya iner', after > before, `${before} → ${after}`);
 
   // aynı seed aynı çöp kolonları
+<<<<<<< HEAD
   const x = createGame({ seed: 1, level: 1, speed: 'med', colors: 3 });
   const y = createGame({ seed: 1, level: 1, speed: 'med', colors: 3 });
+=======
+  const x = createGame({ seed: 1, level: 1, speed: 'med' });
+  const y = createGame({ seed: 1, level: 1, speed: 'med' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   queueGarbage(x, 5, 4242);
   queueGarbage(y, 5, 4242);
   check(
@@ -308,7 +363,11 @@ console.log('\nSaldırı');
 // --- 8. Ağ kodlaması ---
 console.log('\nSerileştirme');
 {
+<<<<<<< HEAD
   const g = createGame({ seed: 2026, level: 12, speed: 'med', colors: 3 });
+=======
+  const g = createGame({ seed: 2026, level: 12, speed: 'med' });
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const enc = encodeBoard(g.board);
   const dec = decodeBoard(enc);
   let same = dec.length === g.board.length;
@@ -317,6 +376,7 @@ console.log('\nSerileştirme');
   check('paket boyutu makul', enc.length < 256, `${enc.length} bayt`);
 }
 
+<<<<<<< HEAD
 // --- Karşı saldırı ---
 console.log('\nKarşı saldırı');
 {
@@ -721,5 +781,7 @@ console.log('\nGüçlendirici sıklığı');
   })());
 }
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
 process.exit(fail > 0 ? 1 : 0);

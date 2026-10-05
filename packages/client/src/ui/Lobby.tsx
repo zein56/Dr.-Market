@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import type { RoomPublic } from '@pill/protocol';
 import { socket } from '../net/socket';
 import { sfx } from '../game/audio';
+<<<<<<< HEAD
 import ThemePicker from './ThemePicker';
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
 export default function Lobby({
   rooms,
@@ -45,7 +48,10 @@ export default function Lobby({
 
   return (
     <div className="lobby">
+<<<<<<< HEAD
       <ThemePicker />
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       <div className="lobby-actions">
         <div className="join-box">
           <input

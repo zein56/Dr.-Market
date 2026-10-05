@@ -318,6 +318,10 @@ export default function App() {
               setScreen('lobby');
             }}
             landscapeMode={landscapeMode}
+<<<<<<< HEAD
+=======
+            onToggleLandscape={toggleLandscape}
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
           />
         )}
 

@@ -1,6 +1,10 @@
 import type { Server, Socket } from 'socket.io';
+<<<<<<< HEAD
 import type { AttackInfo, TargetMode } from '@pill/protocol';
 import { TARGET_MODES } from '@pill/protocol';
+=======
+import type { AttackInfo } from '@pill/protocol';
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 import {
   Room,
   Player,
@@ -16,8 +20,11 @@ import {
   playerPublic,
   allRooms,
   getSession,
+<<<<<<< HEAD
   sanitizeConfig,
   firstHumanId,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 } from './rooms';
 import { upsertUser, saveMatch } from './db';
 import { createBotPlayer, startBotsInRoom, stopBotsInRoom } from './bot';
@@ -129,8 +136,34 @@ export function attachSockets(io: Server) {
       if (!p || !room || room.state !== 'lobby') return;
       if (room.hostId !== p.id) return err(socket, 'Sadece oda sahibi ayarları değiştirebilir');
       const c = msg?.config ?? {};
+<<<<<<< HEAD
       // Güvenli merge: sadece izin verilen alanlar, sınırlanmış değerlerle
       room.config = sanitizeConfig(room.config, c);
+=======
+      // Güvenli merge: sadece izin verilen alanlar
+      room.config = {
+        ...room.config,
+        level: c.level != null ? Math.max(0, Math.min(20, c.level | 0)) : room.config.level,
+        speed: ['low', 'med', 'hi'].includes(c.speed) ? c.speed : room.config.speed,
+        colors: c.colors != null ? Math.max(3, Math.min(10, c.colors | 0)) : room.config.colors,
+        diagMatches: c.diagMatches != null ? !!c.diagMatches : room.config.diagMatches,
+        bombEnabled: c.bombEnabled != null ? !!c.bombEnabled : room.config.bombEnabled,
+        bombThreshold: c.bombThreshold != null ? Math.max(4, Math.min(8, c.bombThreshold | 0)) : room.config.bombThreshold,
+        aoeEnabled: c.aoeEnabled != null ? !!c.aoeEnabled : room.config.aoeEnabled,
+        aoeThreshold: c.aoeThreshold != null ? Math.max(5, Math.min(8, c.aoeThreshold | 0)) : room.config.aoeThreshold,
+        missPenaltyEnabled: c.missPenaltyEnabled != null ? !!c.missPenaltyEnabled : room.config.missPenaltyEnabled,
+        missPenaltyThreshold: c.missPenaltyThreshold != null ? Math.max(3, Math.min(10, c.missPenaltyThreshold | 0)) : room.config.missPenaltyThreshold,
+        normalAttackEnabled: c.normalAttackEnabled != null ? !!c.normalAttackEnabled : room.config.normalAttackEnabled,
+        normalAttackLen: c.normalAttackLen != null ? Math.max(4, Math.min(8, c.normalAttackLen | 0)) : room.config.normalAttackLen,
+        normalAttackRequireCombo: c.normalAttackRequireCombo != null ? !!c.normalAttackRequireCombo : room.config.normalAttackRequireCombo,
+        stoneAttackEnabled: c.stoneAttackEnabled != null ? !!c.stoneAttackEnabled : room.config.stoneAttackEnabled,
+        stoneAttackLen: c.stoneAttackLen != null ? Math.max(4, Math.min(8, c.stoneAttackLen | 0)) : room.config.stoneAttackLen,
+        stoneAttackRequireCombo: c.stoneAttackRequireCombo != null ? !!c.stoneAttackRequireCombo : room.config.stoneAttackRequireCombo,
+        lockAttackEnabled: c.lockAttackEnabled != null ? !!c.lockAttackEnabled : room.config.lockAttackEnabled,
+        lockAttackLen: c.lockAttackLen != null ? Math.max(4, Math.min(8, c.lockAttackLen | 0)) : room.config.lockAttackLen,
+        lockAttackRequireCombo: c.lockAttackRequireCombo != null ? !!c.lockAttackRequireCombo : room.config.lockAttackRequireCombo,
+      };
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       broadcastRoom(io, room);
       io.emit('room_list', { rooms: listRooms() });
     });
@@ -211,9 +244,14 @@ export function attachSockets(io: Server) {
       p.attackBudget += amount;
       if (p.attackBudget > 120) return;
 
+<<<<<<< HEAD
       const targets = pickAttackTargets(room, p.id, 1, p.targetMode, p.lastAttackerId);
       for (const t of targets) {
         t.lastAttackerId = p.id;
+=======
+      const targets = pickAttackTargets(room, p.id, 1);
+      for (const t of targets) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         io.to(t.socketId).emit('incoming_attack', {
           fromId: p.id,
           attack: { normal, stone, lock },
@@ -222,6 +260,7 @@ export function attachSockets(io: Server) {
       }
     });
 
+<<<<<<< HEAD
     socket.on('set_target', (msg: { mode: TargetMode }) => {
       const { player: p } = data;
       if (!p) return;
@@ -245,6 +284,15 @@ export function attachSockets(io: Server) {
         won,
         score: Math.max(0, Math.min(10_000_000, msg?.score | 0)),
         maxChain: Math.max(0, Math.min(200, msg?.maxChain | 0)),
+=======
+    socket.on('finished', (msg: { frame: number; won: boolean; score: number; viruses: number; maxChain: number }) => {
+      const { player: p, room } = data;
+      if (!p || !room || room.state !== 'playing' || !p.alive) return;
+      eliminatePlayer(io, room, p, {
+        won: !!msg?.won,
+        score: msg?.score | 0,
+        maxChain: msg?.maxChain | 0,
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       });
     });
 
@@ -366,8 +414,12 @@ function leaveCurrentRoom(io: Server, socket: Socket) {
   }
 
   if (room.hostId === p.id) {
+<<<<<<< HEAD
     // ev sahibi her zaman gerçek bir oyuncu olmalı (bot maçı başlatamaz)
     room.hostId = firstHumanId(room) ?? [...room.players.keys()][0];
+=======
+    room.hostId = [...room.players.keys()][0];
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   }
   if (room.state === 'playing') {
     assignWatchlists(room);
@@ -391,7 +443,10 @@ function startMatch(io: Server, room: Room) {
     p.maxChain = 0;
     p.frames = 0;
     p.attackBudget = 0;
+<<<<<<< HEAD
     p.lastAttackerId = null;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     p.lastBoard = null;
   }
   assignWatchlists(room);

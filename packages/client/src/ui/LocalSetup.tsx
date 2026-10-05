@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { sfx } from '../game/audio';
+<<<<<<< HEAD
 import ThemePicker from './ThemePicker';
 import { MAX_VS_PLAYERS, MAX_COOP_PLAYERS, defaultPlayerName, type ExtraPlayer } from './localPlayers';
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 import { getAllConnectedGamepads, manuallyAssignGamepad, getAssignedGamepadIndex } from '../game/gamepad';
 import type { BotDifficulty } from '../game/bot';
 
@@ -23,10 +26,13 @@ export interface LocalConfig {
   aoeEnabled: boolean;
   aoeThreshold: number;
 
+<<<<<<< HEAD
   counterEnabled: boolean;
   powerupsEnabled: boolean;
   powerupFreq: number;
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   missPenaltyEnabled: boolean;
   missPenaltyThreshold: number;
 
@@ -41,8 +47,11 @@ export interface LocalConfig {
   lockAttackEnabled: boolean;
   lockAttackLen: number;
   lockAttackRequireCombo: boolean;
+<<<<<<< HEAD
   lockStacking: boolean;
   lockMaxStack: number;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   bombEnabled: boolean;
   bombThreshold: number;
@@ -50,6 +59,7 @@ export interface LocalConfig {
   colors: number;
   attackMode: 'random' | 'all';
   sharedBoard: boolean;
+<<<<<<< HEAD
   /** 4. oyuncu ve sonrası (3. oyuncu açıkken): bot ya da gamepadli insan */
   extraPlayers: ExtraPlayer[];
   /** Ortak tahta: kapsüller havada birbirinden geçebilsin */
@@ -58,6 +68,8 @@ export interface LocalConfig {
   risingEnabled: boolean;
   /** Yükselme hızı 1 (yavaş) .. 10 (hızlı) */
   riseSpeed: number;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   boardCols?: number;
   boardRows?: number;
 }
@@ -94,6 +106,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [aoeThreshold, setAoeThreshold] = useState(saved.aoeThreshold ?? 5);
 
   const [sharedBoard, setSharedBoard] = useState(saved.sharedBoard ?? false);
+<<<<<<< HEAD
   const [extraPlayers, setExtraPlayers] = useState<ExtraPlayer[]>(Array.isArray(saved.extraPlayers) ? saved.extraPlayers : []);
   const [coopPassThrough, setCoopPassThrough] = useState(saved.coopPassThrough ?? false);
   const [risingEnabled, setRisingEnabled] = useState(saved.risingEnabled ?? false);
@@ -103,6 +116,10 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [counterEnabled, setCounterEnabled] = useState(saved.counterEnabled ?? true);
   const [powerupsEnabled, setPowerupsEnabled] = useState(saved.powerupsEnabled ?? true);
   const [powerupFreq, setPowerupFreq] = useState(saved.powerupFreq ?? 5);
+=======
+
+  const [missPenaltyEnabled, setMissPenaltyEnabled] = useState(saved.missPenaltyEnabled ?? false);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const [missPenaltyThreshold, setMissPenaltyThreshold] = useState(saved.missPenaltyThreshold ?? 3);
 
   const [normalAttackEnabled, setNormalAttackEnabled] = useState(saved.normalAttackEnabled ?? false);
@@ -116,8 +133,11 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [lockAttackEnabled, setLockAttackEnabled] = useState(saved.lockAttackEnabled ?? false);
   const [lockAttackLen, setLockAttackLen] = useState(saved.lockAttackLen ?? 6);
   const [lockAttackRequireCombo, setLockAttackRequireCombo] = useState(saved.lockAttackRequireCombo ?? true);
+<<<<<<< HEAD
   const [lockStacking, setLockStacking] = useState(saved.lockStacking ?? false);
   const [lockMaxStack, setLockMaxStack] = useState(saved.lockMaxStack ?? 3);
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   const [colors, setColors] = useState(saved.colors ?? 3);
   const [attackMode, setAttackMode] = useState<'random' | 'all'>(saved.attackMode ?? 'random');
@@ -125,6 +145,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
       p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
+<<<<<<< HEAD
       counterEnabled, powerupsEnabled, powerupFreq, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
@@ -138,6 +159,21 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
     stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
     lockAttackEnabled, lockAttackLen, lockAttackRequireCombo, lockStacking, lockMaxStack,
     colors, attackMode, extraPlayers, coopPassThrough, risingEnabled, riseSpeed
+=======
+      diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+      normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
+      stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
+      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
+      colors, attackMode
+    }));
+  }, [
+    p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
+    diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+    normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
+    stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
+    lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
+    colors, attackMode
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   ]);
   const [showModal, setShowModal] = useState(false);
   const [allGamepads, setAllGamepads] = useState<Gamepad[]>([]);
@@ -179,15 +215,19 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       p3Name: p3IsBot ? `🤖 Bot (${p3BotDifficulty === 'easy' ? 'Kolay' : p3BotDifficulty === 'med' ? 'Orta' : 'Zor'})` : (p3Name.trim() || 'Oyuncu 3'),
       p3IsBot,
       p3BotDifficulty,
+<<<<<<< HEAD
       counterEnabled,
       powerupsEnabled,
       powerupFreq,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       diagMatches,
       bombEnabled, bombThreshold,
       aoeEnabled, aoeThreshold,
       missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
+<<<<<<< HEAD
       lockAttackEnabled, lockAttackLen, lockAttackRequireCombo, lockStacking, lockMaxStack,
       colors,
       attackMode,
@@ -196,11 +236,18 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       coopPassThrough,
       risingEnabled,
       riseSpeed,
+=======
+      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
+      colors,
+      attackMode,
+      sharedBoard,
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       boardCols,
       boardRows,
     });
   };
 
+<<<<<<< HEAD
   const maxPlayers = sharedBoard ? MAX_COOP_PLAYERS : MAX_VS_PLAYERS;
   const rawTotal = p3Enabled ? 3 + extraPlayers.length : 2;
   const playerTotal = Math.min(rawTotal, maxPlayers);
@@ -213,6 +260,13 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       <ThemePicker />
       <p className="local-setup-sub">
         Tek cihazda {MAX_VS_PLAYERS} oyuncuya kadar (insan ve bot) oynayın.<br />
+=======
+  return (
+    <div className="local-setup">
+      <h1 className="local-setup-title">Yerel 2 Oyuncu</h1>
+      <p className="local-setup-sub">
+        Tek cihazda iki kişi veya bir bot ile oynayın.<br />
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         4'lü zincir yaptığınızda rakibinize çöp kapsülü gönderirsiniz.
       </p>
 
@@ -393,6 +447,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
         )}
       </div>
 
+<<<<<<< HEAD
       {p3Enabled && (
         <div className="local-extra-players">
           {extraPlayers.map((ex, i) => {
@@ -443,6 +498,8 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
         </div>
       )}
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       <div className="panel local-settings">
         <label className="field">
           <span>Başlangıç seviyesi: {level} ({(level + 1) * 4} virüs)</span>
@@ -481,6 +538,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
         <label className="field checkbox-field" style={{ background: 'rgba(0,150,255,0.1)', padding: 10, borderRadius: 8 }}>
           <input type="checkbox" checked={sharedBoard} onChange={e => setSharedBoard(e.target.checked)} />
+<<<<<<< HEAD
           <div><strong>🤝 Ortak Dev Tahta (Co-op)</strong><p className="hint">Oyuncuların tahtaları birleşir, devasa tek bir alanda yan yana oynanır (en fazla {MAX_COOP_PLAYERS} oyuncu)</p></div>
         </label>
 
@@ -512,6 +570,11 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
           </div>
         )}
 
+=======
+          <div><strong>🤝 Ortak Dev Tahta (Co-op)</strong><p className="hint">Oyuncuların tahtaları birleşir, devasa tek bir alanda yan yana oynanır</p></div>
+        </label>
+
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         {/* --- TAHTA ÖNİZLEMESİ VE BOYUT AYARLARI --- */}
         <div className="board-preview-container" style={{ display: 'flex', flexDirection: 'column', gap: 15, alignItems: 'center', margin: '15px 0', padding: '20px 15px', background: 'rgba(0,0,0,0.3)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--blue)' }}>TAHTA BOYUTLARI VE ÖNİZLEME</div>
@@ -547,11 +610,19 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
           {/* Önizleme Kutuları */}
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
+<<<<<<< HEAD
             {Array.from({ length: sharedBoard ? 1 : playerTotal }).map((_, i) => {
               const effCols = boardCols;
               const effRows = boardRows;
               const scale = 4;
               const previewWidth = sharedBoard ? effCols * playerTotal * scale : effCols * scale;
+=======
+            {Array.from({ length: sharedBoard ? 1 : (p3Enabled ? 3 : 2) }).map((_, i) => {
+              const effCols = boardCols;
+              const effRows = boardRows;
+              const scale = 4;
+              const previewWidth = sharedBoard ? effCols * (p3Enabled ? 3 : 2) * scale : effCols * scale;
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
               const previewHeight = effRows * scale;
 
               return (
@@ -570,13 +641,22 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
                       boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
                       transition: 'all 0.3s ease'
                     }}>
+<<<<<<< HEAD
                       {sharedBoard && Array.from({ length: playerTotal }).map((_, j) => (
                         <div key={j} style={{ flex: 1, borderRight: j < playerTotal - 1 ? '1px dashed rgba(255,255,255,0.2)' : 'none' }} />
+=======
+                      {sharedBoard && Array.from({ length: p3Enabled ? 3 : 2 }).map((_, j) => (
+                        <div key={j} style={{ flex: 1, borderRight: j < (p3Enabled ? 2 : 1) ? '1px dashed rgba(255,255,255,0.2)' : 'none' }} />
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
                       ))}
                     </div>
                   </div>
 
+<<<<<<< HEAD
                   <span style={{ fontSize: 10, opacity: 0.5 }}>{sharedBoard ? effCols * playerTotal : effCols}</span>
+=======
+                  <span style={{ fontSize: 10, opacity: 0.5 }}>{sharedBoard ? effCols * (p3Enabled ? 3 : 2) : effCols}</span>
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
                 </div>
               );
             })}
@@ -659,6 +739,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
           <label className="field checkbox-field" style={{ margin: 0 }}>
+<<<<<<< HEAD
             <input type="checkbox" checked={powerupsEnabled} onChange={e => setPowerupsEnabled(e.target.checked)} />
             <div>
               <strong>⚡ Güçlendiriciler</strong>
@@ -688,6 +769,8 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
           <label className="field checkbox-field" style={{ margin: 0 }}>
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             <input
               type="checkbox"
               checked={missPenaltyEnabled}
@@ -764,6 +847,7 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
                 <input type="checkbox" checked={lockAttackRequireCombo} onChange={e => setLockAttackRequireCombo(e.target.checked)} />
                 <span style={{ fontSize: 13, opacity: 0.9 }}>Zincir/Kombo Zorunlu Mu?</span>
               </label>
+<<<<<<< HEAD
               <label className="field checkbox-field" style={{ margin: 0 }}>
                 <input type="checkbox" checked={lockStacking} onChange={e => setLockStacking(e.target.checked)} />
                 <div>
@@ -777,6 +861,8 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
                   <input type="range" min={2} max={10} value={lockMaxStack} onChange={e => setLockMaxStack(Number(e.target.value))} />
                 </label>
               )}
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             </div>
           )}
         </div>

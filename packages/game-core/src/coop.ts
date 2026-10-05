@@ -5,7 +5,10 @@ import {
   virusCount, virusTopRow
 } from './constants';
 import { Phase, Input, MatchConfig, Capsule, AttackInfo } from './sim';
+<<<<<<< HEAD
 import { POWER_STRIKE, POWER_JOKER, powerFreqParams } from './powerups';
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
 export interface CoopGameState {
   cfg: MatchConfig;
@@ -33,6 +36,7 @@ export interface CoopGameState {
   bombs: number[];
   bombActives: boolean[];
   spawningTimers: number[]; // Each player can spawn independently if the game isn't clearing
+<<<<<<< HEAD
 
   /** Güçlendiriciler (ortak tahtada: joker ve yıldırım = virüs avcısı) */
   powerRng: Rng;
@@ -56,6 +60,9 @@ export interface CoopGameState {
   /** Yükselme animasyonunda kalan kare (görsel kayma için) */
   riseAnim: number;
 
+=======
+  
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   phaseTimer: number; // Only used when phase = Clearing or Settling
   clearing: number[];
   chain: number;
@@ -141,6 +148,7 @@ function wouldMakeTripleCoop(b: Uint8Array, x: number, y: number, color: number,
 // COOP ENGINE LOGIC
 // ---------------------------------------------------------
 
+<<<<<<< HEAD
 /** Yükselme animasyonunun uzunluğu (kare) */
 export const RISE_ANIM_FRAMES = 16;
 /** Yükselmeden bu kadar kare önce uyarı verilir */
@@ -159,6 +167,8 @@ export function riseRowViruses(level: number, cols: number): number {
   return Math.max(1, Math.min(Math.floor(cols / 2), Math.round(cols * (0.1 + lv * 0.012))));
 }
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?: number, boardRows?: number): CoopGameState {
   const boardColsPerPlayer = Math.max(4, boardCols ?? 8);
   const rows = Math.max(8, boardRows ?? DEFAULT_ROWS);
@@ -194,6 +204,7 @@ export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?
     bombs: Array(playerCount).fill(0),
     bombActives: Array(playerCount).fill(false),
     spawningTimers: Array(playerCount).fill(SPAWN_DELAY),
+<<<<<<< HEAD
 
     powerRng: new Rng((cfg.seed ^ 0x7f4a7c15) >>> 0),
     nextPowers: Array(playerCount).fill(0),
@@ -207,6 +218,9 @@ export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?
     riseCount: 0,
     riseAnim: 0,
 
+=======
+    
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     phaseTimer: 0,
     clearing: [],
     chain: 0,
@@ -229,6 +243,7 @@ function capsuleCells(c: Capsule): [number, number, number, number] {
   }
 }
 
+<<<<<<< HEAD
 /** Kapsül tahta sınırları içinde ve dolu hücreye değmiyor mu? (diğer kapsüllere bakmaz) */
 function fitsBoardCoop(s: CoopGameState, c: Capsule): boolean {
   const [x1, y1, x2, y2] = capsuleCells(c);
@@ -249,6 +264,19 @@ function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): b
   }
 
   if (s.cfg.coopPassThrough) return true; // oyuncular havada birbirine engel olmaz
+=======
+// Check if fits in board AND doesn't collide with other falling capsules!
+function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): boolean {
+  const [x1, y1, x2, y2] = capsuleCells(c);
+  if (c.isBomb) {
+    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
+  } else {
+    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
+    if (x2 < 0 || x2 >= s.cols || y2 < 0 || y2 >= s.rows || getCoop(s.board, x2, y2, s.cols, s.rows) !== EMPTY) return false;
+  }
+  
+  // Collide with other falling capsules?
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   for (let p = 0; p < s.playerCount; p++) {
     if (p === skipPlayerIndex) continue;
     const oc = s.capsules[p];
@@ -265,6 +293,7 @@ function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): b
   return true;
 }
 
+<<<<<<< HEAD
 /** Düşen kapsüllerin kapladığı hücreler: yerçekimi bunlara parça düşürmez. */
 function capsuleCellSet(s: CoopGameState): Set<number> {
   const set = new Set<number>();
@@ -394,6 +423,31 @@ function rollNextPowerCoop(s: CoopGameState, p: number): number {
   if (s.powerRng.next() / 4294967296 >= chance) return 0;
   s.powerGaps[p] = 0;
   return s.powerRng.next() / 4294967296 < 0.6 ? POWER_JOKER : POWER_STRIKE;
+=======
+function lockCapsuleCoop(s: CoopGameState, p: number) {
+  const c = s.capsules[p];
+  if (!c) return;
+  const [x1, y1, x2, y2] = capsuleCells(c);
+
+  if (c.isBomb) {
+    setCoop(s.board, x1, y1, s.cols, cell(KIND_BOMB, 0));
+  } else {
+    const horizontal = y1 === y2;
+    if (horizontal) {
+      const leftFirst = x1 < x2;
+      setCoop(s.board, x1, y1, s.cols, cell(leftFirst ? KIND_LEFT : KIND_RIGHT, c.a));
+      setCoop(s.board, x2, y2, s.cols, cell(leftFirst ? KIND_RIGHT : KIND_LEFT, c.b));
+    } else {
+      const firstOnTop = y1 < y2;
+      setCoop(s.board, x1, y1, s.cols, cell(firstOnTop ? KIND_UP : KIND_DOWN, c.a));
+      setCoop(s.board, x2, y2, s.cols, cell(firstOnTop ? KIND_DOWN : KIND_UP, c.b));
+    }
+  }
+  
+  s.capsules[p] = null;
+  s.capsulesDropped[p]++;
+  s.events.push(`lock:p${p}`);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 function spawnCoop(s: CoopGameState, p: number) {
@@ -406,8 +460,11 @@ function spawnCoop(s: CoopGameState, p: number) {
     c = { x: spawnX, y: 0, rot: 0, a: s.nextA[p], b: s.nextB[p] };
     s.nextA[p] = s.rng.int(s.cfg.colors);
     s.nextB[p] = s.rng.int(s.cfg.colors);
+<<<<<<< HEAD
     if (s.nextPowers[p]) c.power = s.nextPowers[p];
     s.nextPowers[p] = rollNextPowerCoop(s, p);
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   }
 
   if (!fitsCoop(s, c, p)) {
@@ -560,11 +617,17 @@ function applyClearCoop(b: Uint8Array, cleared: number[], cols: number, rows: nu
   }
 }
 
+<<<<<<< HEAD
 function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Set<number> | null): boolean {
   const moved = new Uint8Array(rows * cols);
   let any = false;
   // düşen bir kapsülün bulunduğu hücreye parça düşmez (kapsül tahtada değil, ayrı tutuluyor)
   const free = (x: number, y: number) => getCoop(b, x, y, cols, rows) === EMPTY && !(blocked && blocked.has(y * cols + x));
+=======
+function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
+  const moved = new Uint8Array(rows * cols);
+  let any = false;
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   for (let y = rows - 2; y >= 0; y--) {
     for (let x = 0; x < cols; x++) {
@@ -575,7 +638,11 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Se
 
       const d = partnerDelta(c);
       if (!d) {
+<<<<<<< HEAD
         if (free(x, y + 1)) {
+=======
+        if (getCoop(b, x, y + 1, cols, rows) === EMPTY) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
           setCoop(b, x, y + 1, cols, c);
           b[i] = EMPTY;
           moved[idxCoop(x, y + 1, cols)] = 1;
@@ -590,7 +657,11 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Se
           continue;
         }
         if (d[1] === 0) {
+<<<<<<< HEAD
           if (free(x, y + 1) && free(px, py + 1)) {
+=======
+          if (getCoop(b, x, y + 1, cols, rows) === EMPTY && getCoop(b, px, py + 1, cols, rows) === EMPTY) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             setCoop(b, x, y + 1, cols, c);
             setCoop(b, px, py + 1, cols, pc);
             b[i] = EMPTY; b[idxCoop(px, py, cols)] = EMPTY;
@@ -600,7 +671,11 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Se
         } else {
           const lowY = Math.max(y, py);
           const upY = Math.min(y, py);
+<<<<<<< HEAD
           if (free(x, lowY + 1)) {
+=======
+          if (getCoop(b, x, lowY + 1, cols, rows) === EMPTY) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             const lowC = b[idxCoop(x, lowY, cols)];
             const upC = b[idxCoop(x, upY, cols)];
             b[idxCoop(x, lowY, cols)] = EMPTY; b[idxCoop(x, upY, cols)] = EMPTY;
@@ -616,6 +691,7 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Se
 }
 
 // ---------------------------------------------------------
+<<<<<<< HEAD
 // YÜKSELEN TABAN (sonsuz mod)
 // ---------------------------------------------------------
 
@@ -835,6 +911,8 @@ function updatePlayersCoop(s: CoopGameState, inputsArr: Input[][], canLock: bool
 }
 
 // ---------------------------------------------------------
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 // STEP
 // ---------------------------------------------------------
 export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
@@ -843,6 +921,7 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
     s.frame++;
     return;
   }
+<<<<<<< HEAD
   if (s.riseAnim > 0) s.riseAnim--;
 
   // Yükselen taban (yalnızca Falling fazında geri sayar)
@@ -855,6 +934,124 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
 
   if (s.phase === Phase.Falling) {
     if (lockingPlayers.length > 0) {
+=======
+
+  // --- Falling / Spawning state logic ---
+  if (s.phase === Phase.Falling) {
+    let anyLocked = false;
+    let lockingPlayers: number[] = [];
+
+    // Process each player
+    for (let p = 0; p < s.playerCount; p++) {
+      if (!s.capsules[p]) {
+        s.spawningTimers[p]--;
+        if (s.spawningTimers[p] <= 0) {
+          spawnCoop(s, p);
+        }
+        continue;
+      }
+
+      // Process inputs for falling capsules
+      for (const inp of inputsArr[p] || []) {
+        let dx = 0, dRot = 0;
+        switch (inp) {
+          case Input.Left: dx = -1; s.dasDirs[p] = -1; s.dasTimers[p] = DAS_DELAY; break;
+          case Input.Right: dx = 1; s.dasDirs[p] = 1; s.dasTimers[p] = DAS_DELAY; break;
+          case Input.RotateCW: dRot = 1; break;
+          case Input.RotateCCW: dRot = -1; break;
+          case Input.SoftDropOn: s.softDrops[p] = true; break;
+          case Input.SoftDropOff: s.softDrops[p] = false; s.dasDirs[p] = 0; break;
+          case Input.UseBomb:
+            if (s.cfg.bombEnabled && s.bombs[p] > 0 && !s.bombActives[p]) {
+              s.bombs[p]--;
+              s.bombActives[p] = true;
+              s.events.push(`bomb_activated:p${p}`);
+            }
+            break;
+          case Input.HardDrop:
+            while (true) {
+              const c = s.capsules[p]!;
+              const t = { ...c, y: c.y + 1 };
+              if (fitsCoop(s, t, p)) {
+                s.capsules[p] = t;
+                s.scores[p] += 1;
+              } else break;
+            }
+            lockCapsuleCoop(s, p);
+            anyLocked = true;
+            lockingPlayers.push(p);
+            break;
+        }
+
+        if (dx !== 0 && s.capsules[p]) {
+          const c = s.capsules[p]!;
+          const t = { ...c, x: c.x + dx };
+          if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`move:p${p}`); }
+        }
+
+        if (dRot !== 0 && s.capsules[p]) {
+          const c = s.capsules[p]!;
+          const nrot = (c.rot + (dRot > 0 ? 1 : 3)) & 3;
+          const candidates = [{ ...c, rot: nrot }, { ...c, rot: nrot, x: c.x - 1 }, { ...c, rot: nrot, x: c.x + 1 }, { ...c, rot: nrot, y: c.y + 1 }];
+          for (const t of candidates) {
+            if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`rotate:p${p}`); break; }
+          }
+        }
+      }
+
+      // DAS handling
+      if (s.dasDirs[p] !== 0 && s.capsules[p]) {
+        s.dasTimers[p]--;
+        if (s.dasTimers[p] <= 0) {
+          const c = s.capsules[p]!;
+          const t = { ...c, x: c.x + s.dasDirs[p] };
+          if (fitsCoop(s, t, p)) { s.capsules[p] = t; }
+          s.dasTimers[p] = DAS_REPEAT;
+        }
+      }
+
+      // Gravity Handling
+      if (s.capsules[p]) {
+        s.gravityTimers[p]++;
+        const baseNeed = gravityFrames(s.cfg.speed, s.capsulesDropped[p]);
+        const need = s.softDrops[p] ? SOFT_DROP_FRAMES : baseNeed;
+
+        if (s.gravityTimers[p] >= need) {
+          s.gravityTimers[p] = 0;
+          const c = s.capsules[p]!;
+          const t = { ...c, y: c.y + 1 };
+          if (fitsCoop(s, t, p)) {
+            s.capsules[p] = t;
+            s.lockTimers[p] = 0;
+            if (s.softDrops[p]) s.scores[p] += 1;
+          } else {
+            s.lockTimers[p]++;
+            if (s.lockTimers[p] >= baseNeed) {
+              lockCapsuleCoop(s, p);
+              anyLocked = true;
+              lockingPlayers.push(p);
+            }
+          }
+        } else {
+          // If on floor, lock timer increments anyway
+          const c = s.capsules[p]!;
+          const t = { ...c, y: c.y + 1 };
+          if (!fitsCoop(s, t, p)) {
+            s.lockTimers[p]++;
+            if (s.lockTimers[p] >= baseNeed) {
+              lockCapsuleCoop(s, p);
+              anyLocked = true;
+              lockingPlayers.push(p);
+            }
+          } else {
+            s.lockTimers[p] = 0;
+          }
+        }
+      }
+    }
+
+    if (anyLocked) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       const m = findMatchesCoop(s.board, s);
       if (m.cleared.length > 0) {
         s.chain++;
@@ -867,23 +1064,41 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
         s.clearing = m.cleared;
         s.virusesLeft -= m.virusesCleared;
         s.totalVirusesCleared += m.virusesCleared;
+<<<<<<< HEAD
 
         // Give score to the primary locking player
         const mainP = lockingPlayers[0];
         s.scores[mainP] += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
 
+=======
+        
+        // Give score to the primary locking player
+        const mainP = lockingPlayers[0];
+        s.scores[mainP] += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
+        
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         s.phase = Phase.Clearing;
         s.phaseTimer = CLEAR_ANIM_FRAMES;
         s.events.push(s.chain > 1 ? 'chain' : 'clear');
         if (m.virusesCleared > 0) s.events.push('virus');
       } else {
         s.chain = 0;
+<<<<<<< HEAD
         if (s.virusesLeft <= 0 && !endless) {
+=======
+        if (s.virusesLeft <= 0) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
           s.phase = Phase.Won;
           s.events.push('won');
         } else {
           // set spawning delays for those who locked
+<<<<<<< HEAD
           for (const p of lockingPlayers) s.spawningTimers[p] = SPAWN_DELAY;
+=======
+          for (const p of lockingPlayers) {
+            s.spawningTimers[p] = SPAWN_DELAY;
+          }
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         }
       }
     }
@@ -898,8 +1113,12 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
   } else if (s.phase === Phase.Settling) {
     s.phaseTimer--;
     if (s.phaseTimer <= 0) {
+<<<<<<< HEAD
       // düşen kapsüllerin bulunduğu hücrelere parça düşmez
       const moved = stepGravityCoop(s.board, s.cols, s.rows, capsuleCellSet(s));
+=======
+      const moved = stepGravityCoop(s.board, s.cols, s.rows);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       if (moved) {
         s.phaseTimer = FALL_STEP_FRAMES;
       } else {
@@ -917,7 +1136,11 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
           if (m.virusesCleared > 0) s.events.push('virus');
         } else {
           s.chain = 0;
+<<<<<<< HEAD
           if (s.virusesLeft <= 0 && !endless) {
+=======
+          if (s.virusesLeft <= 0) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             s.phase = Phase.Won;
             s.events.push('won');
           } else {
@@ -927,6 +1150,10 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
       }
     }
   }
+<<<<<<< HEAD
 
+=======
+  
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   s.frame++;
 }

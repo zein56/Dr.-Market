@@ -22,12 +22,16 @@ import {
   SPAWN_Y,
   SpeedSetting,
   isVirus,
+<<<<<<< HEAD
   isStone,
   hasLock,
   removeLock,
   addLock,
   getLockCount,
   MAX_LOCK_LEVEL,
+=======
+  addLock,
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 } from './constants';
 import {
   Board,
@@ -43,6 +47,7 @@ import {
   cloneBoard,
 } from './board';
 import { Rng } from './rng';
+<<<<<<< HEAD
 import {
   POWER_STRIKE,
   POWER_SHIELD,
@@ -54,6 +59,8 @@ import {
   SHIELD_MAX,
   pickPower,
 } from './powerups';
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
 export const enum Phase {
   Spawning = 0,
@@ -83,9 +90,12 @@ export interface MatchConfig {
   cols?: number;
   rows?: number;
 
+<<<<<<< HEAD
   /** Karşı saldırı: kendi ürettiğin saldırı, sırada bekleyen gelen çöpü önce iptal eder. */
   counterEnabled?: boolean;
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   aoeEnabled?: boolean;
   aoeThreshold?: number;
 
@@ -108,6 +118,7 @@ export interface MatchConfig {
   bombThreshold?: number;
 
   colors: number; // 3..10 (kaç farklı renk kullanılacak)
+<<<<<<< HEAD
 
   /** Güçlendirici kapsüller (bkz. powerups.ts). Verilmezse kapalı. */
   powerupsEnabled?: boolean;
@@ -125,6 +136,8 @@ export interface MatchConfig {
   risingEnabled?: boolean;
   /** Yükselme hızı 1 (yavaş) .. 10 (hızlı). Varsayılan 5. */
   riseSpeed?: number;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 export interface Capsule {
@@ -136,16 +149,22 @@ export interface Capsule {
   a: number; // birinci yarımın rengi
   b: number; // ikinci yarımın rengi
   isBomb?: boolean;
+<<<<<<< HEAD
   /** Güçlendirici türü (POWER_*). Yoksa normal kapsül. */
   power?: number;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 export interface AttackInfo {
   normal: number;
   stone: number;
   lock: number;
+<<<<<<< HEAD
   /** çöp parçalarının renkleri (protokoldeki AttackInfo ile aynı) */
   colors?: number[];
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 export interface PendingGarbage {
@@ -186,6 +205,7 @@ export interface GameState {
   maxChain: number;
   bombs: number; // 0..3
   bombActive: boolean; // if true, next spawned capsule is a bomb
+<<<<<<< HEAD
 
   /** Güçlendirici programı için ayrı RNG (renk dizisini etkilemez) */
   powerRng: Rng;
@@ -197,6 +217,8 @@ export interface GameState {
   shield: number;
   /** step() dışında (ör. queueGarbage) oluşan olaylar; bir sonraki adımda events'e taşınır */
   queuedEvents: string[];
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 function nextColor(rng: Rng, colors: number): number {
@@ -239,11 +261,14 @@ export function createGame(cfg: MatchConfig): GameState {
     maxChain: 0,
     bombs: 0,
     bombActive: false,
+<<<<<<< HEAD
     powerRng: new Rng((cfg.seed ^ 0x7f4a7c15) >>> 0),
     nextPower: 0,
     powerGap: 0,
     shield: 0,
     queuedEvents: [],
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   };
   return s;
 }
@@ -285,6 +310,7 @@ function fits(board: Board, c: Capsule): boolean {
   );
 }
 
+<<<<<<< HEAD
 /** Kapsülün iki yarımını yönüne göre tahtaya yazar. */
 function writeHalves(board: Board, c: Capsule, a: number, b: number) {
   const [x1, y1, x2, y2] = capsuleCells(c);
@@ -377,6 +403,12 @@ function lockCapsule(s: GameState) {
   const c = s.capsule;
   if (!c) return;
   const [x1, y1] = capsuleCells(c);
+=======
+function lockCapsule(s: GameState) {
+  const c = s.capsule;
+  if (!c) return;
+  const [x1, y1, x2, y2] = capsuleCells(c);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   if (c.isBomb) {
     // Bomba tek hücre — sadece birinci pozisyona yaz
@@ -387,6 +419,7 @@ function lockCapsule(s: GameState) {
     return;
   }
 
+<<<<<<< HEAD
   let a = c.a;
   let b = c.b;
   if (c.power === POWER_JOKER) [a, b] = jokerColors(s, c);
@@ -407,6 +440,25 @@ function rollNextPower(s: GameState): number {
   if (s.powerRng.next() / 4294967296 >= chance) return 0;
   s.powerGap = 0;
   return pickPower(s.powerRng.next() / 4294967296);
+=======
+  const horizontal = y1 === y2;
+  if (horizontal) {
+    const leftFirst = x1 < x2;
+    const kindA = leftFirst ? KIND_LEFT : KIND_RIGHT;
+    const kindB = leftFirst ? KIND_RIGHT : KIND_LEFT;
+    set(s.board, x1, y1, cell(kindA, c.a));
+    set(s.board, x2, y2, cell(kindB, c.b));
+  } else {
+    const firstOnTop = y1 < y2;
+    const kindA = firstOnTop ? KIND_UP : KIND_DOWN;
+    const kindB = firstOnTop ? KIND_DOWN : KIND_UP;
+    set(s.board, x1, y1, cell(kindA, c.a));
+    set(s.board, x2, y2, cell(kindB, c.b));
+  }
+  s.capsule = null;
+  s.capsulesDropped++;
+  s.events.push('lock');
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 function spawn(s: GameState) {
@@ -433,9 +485,12 @@ function spawn(s: GameState) {
     };
     s.nextA = nextColor(s.rng, s.cfg.colors);
     s.nextB = nextColor(s.rng, s.cfg.colors);
+<<<<<<< HEAD
     // güç bu kapsüle geçer; bomba kapsülü sırayı tüketmediği için güç bir sonrakine kalır
     if (s.nextPower) c.power = s.nextPower;
     s.nextPower = rollNextPower(s);
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   }
 
   if (!fits(s.board, c)) {
@@ -452,6 +507,7 @@ function spawn(s: GameState) {
 }
 
 /** Zincir adımına göre rakibe gidecek çöp miktarı */
+<<<<<<< HEAD
 /**
  * Karşı saldırı: üretilen saldırıyı (normal + taş) sırada bekleyen gelen çöple
  * karşılaştırır. Her birim, bekleyen bir çöp parçasını iptal eder (eskiden yeniye).
@@ -484,6 +540,8 @@ export function cancelPendingGarbage(s: GameState, attack: AttackInfo): number {
   return cancelled;
 }
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 function attackFor(groups: number, chain: number, viruses: number, cfg: MatchConfig, matchesLengths: { len: number, color: number }[]): AttackInfo {
   const atk: AttackInfo = { normal: 0, stone: 0, lock: 0, colors: [] };
 
@@ -545,11 +603,23 @@ function enterClearOrSettle(s: GameState) {
     s.totalVirusesCleared += m.virusesCleared;
     s.score += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
     const newAttack = attackFor(m.groups, s.chain, m.virusesCleared, s.cfg, m.matchesLengths);
+<<<<<<< HEAD
     if (s.cfg.counterEnabled) {
       const cancelled = cancelPendingGarbage(s, newAttack);
       if (cancelled > 0) s.events.push(`counter:${cancelled}`);
     }
     mergeAttack(s, newAttack);
+=======
+    if (!s.attackOut) {
+      s.attackOut = { normal: 0, stone: 0, lock: 0, colors: [] };
+    }
+    s.attackOut.normal += newAttack.normal;
+    s.attackOut.stone += newAttack.stone;
+    s.attackOut.lock += newAttack.lock;
+    if (newAttack.colors) {
+      s.attackOut.colors = (s.attackOut.colors || []).concat(newAttack.colors);
+    }
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     s.phase = Phase.Clearing;
     s.phaseTimer = CLEAR_ANIM_FRAMES;
     s.events.push(s.chain > 1 ? 'chain' : 'clear');
@@ -628,10 +698,13 @@ function moveDown(s: GameState): boolean {
 /** Tek bir frame ilerlet. inputs: bu frame'de gelen girdiler. */
 export function step(s: GameState, inputs: Input[]): void {
   s.events.length = 0;
+<<<<<<< HEAD
   if (s.queuedEvents.length > 0) {
     for (const ev of s.queuedEvents) s.events.push(ev);
     s.queuedEvents.length = 0;
   }
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   s.attackOut = null;
 
   if (s.phase === Phase.Won || s.phase === Phase.Lost) {
@@ -781,6 +854,7 @@ export function resumeGame(
   virusesLeft: number
 ): GameState {
   const rng = new Rng(((Date.now() ^ frame ^ (Math.random() * 0xffffffff)) >>> 0) || 1);
+<<<<<<< HEAD
   const restored = cloneBoard(board);
   const s: GameState = {
     cfg,
@@ -788,13 +862,23 @@ export function resumeGame(
     // cols/rows eksikti: kapsül doğuş konumu NaN oluyordu
     cols: restored.cols,
     rows: restored.rows,
+=======
+  const s: GameState = {
+    cfg,
+    board: cloneBoard(board),
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     frame,
     phase: Phase.Spawning,
     rng,
     capsule: null,
+<<<<<<< HEAD
     // renk sayısı verilmediği için nextA/nextB NaN çıkıyordu
     nextA: nextColor(rng, cfg.colors),
     nextB: nextColor(rng, cfg.colors),
+=======
+    nextA: nextColor(rng),
+    nextB: nextColor(rng),
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     capsulesDropped: 0,
     gravityTimer: 0,
     lockTimer: 0,
@@ -814,11 +898,14 @@ export function resumeGame(
     maxChain: 0,
     bombs: 0,
     bombActive: false,
+<<<<<<< HEAD
     powerRng: new Rng(((Date.now() ^ frame ^ (Math.random() * 0xffffffff)) >>> 0) || 1),
     nextPower: 0,
     powerGap: 0,
     shield: 0,
     queuedEvents: [],
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   };
   return s;
 }
@@ -826,6 +913,7 @@ export function resumeGame(
 /** Rakipten gelen saldırıyı kuyruğa ekle. Kolonlar deterministik RNG ile seçilir. */
 export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
   if (attack.normal <= 0 && attack.stone <= 0 && attack.lock <= 0) return;
+<<<<<<< HEAD
 
   // Kalkan: gelen saldırı paketinin tamamını emer
   if (s.shield > 0) {
@@ -833,6 +921,8 @@ export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
     s.queuedEvents.push('shield_block'); // step() bir sonraki adımda events'e taşır
     return;
   }
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const rng = new Rng(seed);
 
   // Kilit saldırıları anında uygulanır!
@@ -841,6 +931,7 @@ export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
     for (let i = 0; i < s.board.length; i++) {
       if (isVirus(s.board[i])) viruses.push(i);
     }
+<<<<<<< HEAD
     if (s.cfg.lockStacking) {
       // Üst üste ekleme: sınıra ulaşmamış virüslerden rastgele biri seçilir
       const maxLvl = Math.min(MAX_LOCK_LEVEL, Math.max(1, Math.round(s.cfg.lockMaxStack ?? 3)));
@@ -856,6 +947,12 @@ export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
       for (let i = 0; i < attack.lock; i++) {
         const target = viruses[rng.int(viruses.length)];
         s.board[target] = hasLock(s.board[target]) ? removeLock(s.board[target]) : addLock(s.board[target]);
+=======
+    if (viruses.length > 0) {
+      for (let i = 0; i < attack.lock; i++) {
+        const target = viruses[rng.int(viruses.length)];
+        s.board[target] = addLock(s.board[target]);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         s.events.push(`lock_applied:${target}`);
       }
     }

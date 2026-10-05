@@ -31,7 +31,11 @@ body,
 }
 
 body {
+<<<<<<< HEAD
   background: radial-gradient(120% 80% at 50% 0%, var(--bg-glow, #143040) 0%, var(--bg) 60%);
+=======
+  background: radial-gradient(120% 80% at 50% 0%, #143040 0%, var(--bg) 60%);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   color: var(--ink);
   font-family: var(--body);
   font-size: 15px;
@@ -848,6 +852,7 @@ input {
   flex-wrap: wrap;
 }
 
+<<<<<<< HEAD
 .theme-picker {
   display: flex;
   align-items: center;
@@ -929,6 +934,8 @@ input {
   font-weight: 700;
 }
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 .hint {
   font-size: 11px;
   color: var(--ink-dim);
@@ -1355,8 +1362,12 @@ input {
   padding: 4px;
 }
 
+<<<<<<< HEAD
 .landscape-active .game-foot,
 .landscape-active .target-row {
+=======
+.landscape-active .game-foot {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   display: none;
 }
 
@@ -1506,6 +1517,7 @@ input {
   top: 40px;
   background: rgba(255, 50, 50, 0.2);
   border-color: rgba(255, 50, 50, 0.5);
+<<<<<<< HEAD
 }
 /* ---- Yerel çok oyunculu (4-6 oyuncu) ---- */
 .p4-name { color: #ffd166; }
@@ -1631,3 +1643,6 @@ input {
   from { opacity: 0.65; }
   to { opacity: 1; }
 }
+=======
+}
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51

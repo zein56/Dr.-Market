@@ -196,6 +196,7 @@ export default function RoomView({
               )}
             </div>
 
+<<<<<<< HEAD
             {/* Karşı Saldırı */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
               <label className="field checkbox-field" style={{ margin: 0 }}>
@@ -227,6 +228,8 @@ export default function RoomView({
               )}
             </div>
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             {/* Hata Cezası */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
               <label className="field checkbox-field" style={{ margin: 0 }}>
@@ -304,6 +307,7 @@ export default function RoomView({
                       onChange={e => updateCfg({ lockAttackRequireCombo: e.target.checked })} />
                     <span style={{ fontSize: 12 }}>Kombo zorunlu</span>
                   </label>
+<<<<<<< HEAD
                   <label className="field checkbox-field" style={{ margin: 0 }}>
                     <input type="checkbox" checked={!!cfg.lockStacking} disabled={!isHost}
                       onChange={e => updateCfg({ lockStacking: e.target.checked })} />
@@ -316,6 +320,8 @@ export default function RoomView({
                         onChange={e => updateCfg({ lockMaxStack: Number(e.target.value) })} />
                     </label>
                   )}
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
                 </div>
               )}
             </div>

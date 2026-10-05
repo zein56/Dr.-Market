@@ -2,6 +2,7 @@
 
 export type SpeedSetting = 'low' | 'med' | 'hi';
 
+<<<<<<< HEAD
 /**
  * Saldırı hedefleme modu (oyuncu başına, maç içinde değiştirilebilir):
  *  - random : hayatta olan rastgele bir rakip
@@ -11,6 +12,8 @@ export type SpeedSetting = 'low' | 'med' | 'hi';
 export type TargetMode = 'random' | 'leader' | 'revenge';
 export const TARGET_MODES: TargetMode[] = ['random', 'leader', 'revenge'];
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 export interface AttackInfo {
   normal: number;
   stone: number;
@@ -26,6 +29,7 @@ export interface RoomConfig {
   detailFanout: number;
   diagMatches?: boolean;
 
+<<<<<<< HEAD
   /** Karşı saldırı: ürettiğin saldırı, bekleyen gelen çöpü önce iptal eder. */
   counterEnabled?: boolean;
 
@@ -34,6 +38,8 @@ export interface RoomConfig {
   /** Güçlendirici sıklığı: 1 (seyrek) .. 10 (sık). Varsayılan 5. */
   powerupFreq?: number;
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   aoeEnabled?: boolean;
   aoeThreshold?: number;
 
@@ -51,10 +57,13 @@ export interface RoomConfig {
   lockAttackEnabled?: boolean;
   lockAttackLen?: number;
   lockAttackRequireCombo?: boolean;
+<<<<<<< HEAD
   /** Kilitler aynı virüse üst üste eklenebilsin (kapalıysa zaten kilitli virüse gelen kilit onu açar). */
   lockStacking?: boolean;
   /** Üst üste en fazla kilit katmanı (2..10). */
   lockMaxStack?: number;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   bombEnabled?: boolean;
   bombThreshold?: number;
@@ -103,8 +112,11 @@ export interface C2S {
   finished: { frame: number; won: boolean; score: number; viruses: number; maxChain: number };
   ping: { t0: number };
   chat: { text: string };
+<<<<<<< HEAD
   /** saldırı hedefleme modunu seç */
   set_target: { mode: TargetMode };
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 /** Sunucu -> İstemci */
@@ -151,11 +163,14 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   maxPlayers: 32,
   detailFanout: 8,
   diagMatches: false,
+<<<<<<< HEAD
   counterEnabled: true,
   powerupsEnabled: true,
   powerupFreq: 5,
   lockStacking: false,
   lockMaxStack: 3,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   aoeEnabled: false,
   aoeThreshold: 5,
   missPenaltyEnabled: false,

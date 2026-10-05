@@ -1,5 +1,9 @@
 import { randomBytes } from 'node:crypto';
+<<<<<<< HEAD
 import type { RoomConfig, RoomPublic, PlayerPublic, TargetMode } from '@pill/protocol';
+=======
+import type { RoomConfig, RoomPublic, PlayerPublic } from '@pill/protocol';
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 import { DEFAULT_ROOM_CONFIG } from '@pill/protocol';
 
 export interface Player {
@@ -19,10 +23,13 @@ export interface Player {
   lastFrame: number;
   /** anti-flood */
   attackBudget: number;
+<<<<<<< HEAD
   /** saldırılarını kime yönelteceği (oyuncu seçer) */
   targetMode: TargetMode;
   /** bu oyuncuyu en son vuran kişi ('revenge' modu için) */
   lastAttackerId: string | null;
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   /** bu oyuncunun tahtasını detaylı izleyenler */
   watchers: Set<string>;
   /** bu oyuncunun izlediği rakipler */
@@ -61,11 +68,20 @@ export function createRoom(name: string, host: Player, cfg: Partial<RoomConfig>)
   let code = makeCode();
   while (rooms.has(code)) code = makeCode();
 
+<<<<<<< HEAD
   // Oda kurulurken gelen ayarlar da güncellemeyle aynı kurallardan geçer
   const config: RoomConfig = {
     ...sanitizeConfig(DEFAULT_ROOM_CONFIG, cfg),
     maxPlayers: clamp(Number(cfg.maxPlayers ?? DEFAULT_ROOM_CONFIG.maxPlayers) | 0, 1, 200),
     detailFanout: clamp(Number(cfg.detailFanout ?? DEFAULT_ROOM_CONFIG.detailFanout) | 0, 1, 16),
+=======
+  const config: RoomConfig = {
+    ...DEFAULT_ROOM_CONFIG,
+    ...cfg,
+    level: clamp(cfg.level ?? DEFAULT_ROOM_CONFIG.level, 0, 20),
+    maxPlayers: clamp(cfg.maxPlayers ?? DEFAULT_ROOM_CONFIG.maxPlayers, 1, 200),
+    detailFanout: clamp(cfg.detailFanout ?? DEFAULT_ROOM_CONFIG.detailFanout, 1, 16),
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   };
 
   const room: Room = {
@@ -133,8 +149,11 @@ export function newPlayer(socketId: string, name: string, userId: number | null)
     lastBoard: null,
     lastFrame: 0,
     attackBudget: 0,
+<<<<<<< HEAD
     targetMode: 'random',
     lastAttackerId: null,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     watchers: new Set(),
     watching: new Set(),
     token: randomBytes(16).toString('hex'),
@@ -182,6 +201,7 @@ export function assignWatchlists(room: Room) {
   }
 }
 
+<<<<<<< HEAD
 /**
  * Saldırı hedefi seçimi.
  *  - random : hayatta olan rastgele rakip(ler) (1v1'de tek rakip)
@@ -214,6 +234,13 @@ export function pickAttackTargets(
     }
   }
 
+=======
+/** Saldırı hedefi: rastgele başka bir canlı oyuncu (1v1'de tek rakip) */
+export function pickAttackTargets(room: Room, fromId: string, count: number): Player[] {
+  const alive = [...room.players.values()].filter((p) => p.alive && p.id !== fromId);
+  if (alive.length === 0) return [];
+  if (alive.length === 1) return [alive[0]];
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const picked: Player[] = [];
   for (let i = 0; i < Math.min(count, alive.length); i++) {
     picked.push(alive[(Math.random() * alive.length) | 0]);
@@ -227,6 +254,7 @@ export function aliveCount(room: Room): number {
   return n;
 }
 
+<<<<<<< HEAD
 /**
  * Dışarıdan gelen oda ayarlarını güvenli biçimde `base` üzerine işler.
  * Sadece bilinen alanlar alınır, sayılar sınırlanır, bozuk değerler yok sayılır.
@@ -275,6 +303,8 @@ export function firstHumanId(room: Room): string | undefined {
   return undefined;
 }
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }

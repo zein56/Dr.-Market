@@ -17,11 +17,17 @@ import {
   type Board,
   type AttackInfo,
 } from '@pill/game-core';
+<<<<<<< HEAD
 import type { PlayerPublic, TargetMode } from '@pill/protocol';
 import { TARGET_MODES } from '@pill/protocol';
 import { socket, serverNow } from '../net/socket';
 import { Juice } from '../game/juice';
 import { drawBoard, drawMini, drawNext, drawIncomingMeter, advanceAnim, type VisualEffect } from '../game/render';
+=======
+import type { PlayerPublic } from '@pill/protocol';
+import { socket, serverNow } from '../net/socket';
+import { drawBoard, drawMini, drawNext, advanceAnim, type VisualEffect } from '../game/render';
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 import { attachKeyboard, attachTouch, holdable } from '../game/controls';
 import { pollGamepad, createGamepadState } from '../game/gamepad';
 import { sfx, startMusic, stopMusic, pauseMusic, resumeMusic, setTheme, initAudio } from '../game/audio';
@@ -68,6 +74,7 @@ export default function Game({
   const pendingAttackRef = useRef<AttackInfo>({ normal: 0, stone: 0, lock: 0 });
   const gpStateRef = useRef(createGamepadState());
   const fxRef = useRef<VisualEffect[]>([]);
+<<<<<<< HEAD
   const juiceRef = useRef(new Juice());
   const [targetMode, setTargetMode] = useState<TargetMode>(() => {
     try {
@@ -77,6 +84,8 @@ export default function Game({
       return 'random';
     }
   });
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   const isPausedRef = useRef(false);
   const lastPauseBtnsRef = useRef<Record<number, boolean>>({});
 
@@ -127,11 +136,14 @@ export default function Game({
       level: match.config.level,
       speed: match.config.speed,
       diagMatches: match.config.diagMatches,
+<<<<<<< HEAD
       counterEnabled: match.config.counterEnabled,
       powerupsEnabled: match.config.powerupsEnabled,
       powerupFreq: match.config.powerupFreq,
       lockStacking: match.config.lockStacking,
       lockMaxStack: match.config.lockMaxStack,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       aoeEnabled: match.config.aoeEnabled,
       aoeThreshold: match.config.aoeThreshold,
       missPenaltyEnabled: match.config.missPenaltyEnabled,
@@ -271,6 +283,7 @@ export default function Game({
     };
   }, []);
 
+<<<<<<< HEAD
   // --- saldırı hedefleme ---
   const chooseTarget = useCallback((m: TargetMode, announce = true) => {
     setTargetMode(m);
@@ -298,6 +311,12 @@ export default function Game({
       }
       // Hata ayıklama kısayolu: yalnızca geliştirme modunda (üretimde herkes taş saldırısı gönderebiliyordu)
       if (import.meta.env.DEV && e.code === 'Digit9' && stateRef.current) {
+=======
+  // --- kontroller ---
+  useEffect(() => {
+    const onCheat = (e: KeyboardEvent) => {
+      if (e.code === 'Digit9' && stateRef.current) {
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         socket.emit('attack', { frame: stateRef.current.frame, attack: { normal: 0, stone: 1, lock: 0 } });
         e.preventDefault();
       }
@@ -312,7 +331,11 @@ export default function Game({
       offKb();
       offTouch();
     };
+<<<<<<< HEAD
   }, [sink, padMode, chooseTarget]);
+=======
+  }, [sink, padMode]);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
   // --- sabit adımlı oyun döngüsü ---
   useEffect(() => {
@@ -358,11 +381,15 @@ export default function Game({
         const inputs = inputQueue.current;
         inputQueue.current = [];
         step(s, inputs);
+<<<<<<< HEAD
         juiceRef.current.handle(s, s.cols || COLS);
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
         for (const ev of s.events) {
           if (ev === 'move' || ev === 'rotate' || ev === 'lock' || ev === 'clear' ||
             ev === 'chain' || ev === 'virus' || ev === 'won' || ev === 'lost') {
+<<<<<<< HEAD
             sfx(ev, s.chain);
           } else if (ev.startsWith('power:')) {
             sfx('power');
@@ -370,6 +397,9 @@ export default function Game({
             sfx('shield');
           } else if (ev.startsWith('counter:')) {
             sfx('counter');
+=======
+            sfx(ev);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
           } else if (ev.startsWith('penalty_spawn:')) {
             sfx('penalty_spawn');
             fxRef.current.push({ type: 'penalty', idx: parseInt(ev.split(':')[1], 10), timer: 30 });
@@ -431,7 +461,10 @@ export default function Game({
 
       const cols = s.cols || COLS;
       const cell = canvas.clientWidth / cols;
+<<<<<<< HEAD
       juiceRef.current.update();
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       drawBoard(
         ctx,
         s.board,
@@ -444,6 +477,7 @@ export default function Game({
         },
         s
       );
+<<<<<<< HEAD
       juiceRef.current.draw(ctx, cell, cols);
       if (match.config.counterEnabled) {
         const incoming = s.pendingGarbage.reduce((n, g) => n + g.columns.length, 0);
@@ -453,6 +487,11 @@ export default function Game({
 
       const nc = nextRef.current?.getContext('2d');
       if (nc) drawNext(nc, s.nextA, s.nextB, nextRef.current!.width / 2, s.nextPower);
+=======
+
+      const nc = nextRef.current?.getContext('2d');
+      if (nc) drawNext(nc, s.nextA, s.nextB, nextRef.current!.width / 2);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 
       setHud((h) =>
         h.viruses === s.virusesLeft && h.score === s.score && h.chain === s.chain && h.missCount === s.missCount && h.bombs === s.bombs
@@ -481,8 +520,13 @@ export default function Game({
 
       canvas.style.display = prevDisplay;
 
+<<<<<<< HEAD
       const cols = stateRef.current?.cols || COLS;
       const rows = stateRef.current?.rows || ROWS;
+=======
+      const cols = state.current?.cols || COLS;
+      const rows = state.current?.rows || ROWS;
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       let cell = Math.floor(Math.min(availW / cols, availH / rows));
       cell = Math.max(12, cell);
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -534,7 +578,11 @@ export default function Game({
           )}
         </div>
       )}
+<<<<<<< HEAD
       {!landscapeMode && (
+=======
+      {landscapeMode == 0 && (
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
         <div className="game-hud">
           <div className="hud-item">
             <span className="hud-label">Virüs</span>
@@ -578,7 +626,11 @@ export default function Game({
 
       < div className="game-body">
         <div className="stage" ref={stageRef}>
+<<<<<<< HEAD
           {landscapeMode && (
+=======
+          {landscapeMode == 1 && (
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
             <div className="game-hud">
               <div className="hud-item">
                 <span className="hud-label">Virüs</span>
@@ -673,6 +725,7 @@ export default function Game({
         )
       }
 
+<<<<<<< HEAD
       {peerList.length > 1 && (
         <div className="target-row">
           <span className="target-label">🎯 Hedef</span>
@@ -689,6 +742,8 @@ export default function Game({
         </div>
       )}
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       <div className="game-foot">
         <button
           className="btn small ghost"
@@ -713,6 +768,7 @@ export default function Game({
   );
 }
 
+<<<<<<< HEAD
 const TARGET_LABEL: Record<TargetMode, string> = {
   random: 'Rastgele',
   leader: 'Lider',
@@ -724,6 +780,8 @@ const TARGET_HINT: Record<TargetMode, string> = {
   revenge: 'Seni en son vuran rakip',
 };
 
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 function PeerBoard({ peer }: { peer: PeerView }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {

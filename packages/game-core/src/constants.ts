@@ -18,6 +18,7 @@ export const KIND_DOWN = 5; // eşi üstümde
 export const KIND_STONE = 6; // kalıcı taş
 export const KIND_BOMB = 7; // bomba hücresi
 
+<<<<<<< HEAD
 /**
  * Hücre kodlaması (Uint8):
  *  - 0 = boş
@@ -58,6 +59,27 @@ export function removeLock(c: number): number {
   if (lvl <= 0) return c;
   if (lvl === 1) return stripLocks(c);
   return LOCK_BASE + (lvl - 2) * MAX_COLORS + ((stripLocks(c) - 1) % MAX_COLORS);
+=======
+/** Hücre kodlaması: 0 = boş, aksi halde 1 + kind*10 + color (1..70). Bit 7+ (128+) = kilit sayısı */
+export const EMPTY = 0;
+
+export function stripLocks(c: number): number {
+  return c & 127;
+}
+export function getLockCount(c: number): number {
+  return c >> 7;
+}
+export function addLock(c: number): number {
+  if (getLockCount(c) >= 7) return c;
+  return c + 128;
+}
+export function removeLock(c: number): number {
+  if (getLockCount(c) <= 0) return c;
+  return c - 128;
+}
+export function hasLock(c: number): boolean {
+  return c >= 128;
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 }
 
 export function cell(kind: number, color: number): number {

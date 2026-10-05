@@ -29,11 +29,18 @@ import {
   type Board,
   type Capsule,
   type AttackInfo,
+<<<<<<< HEAD
   cloneBoard,
 } from '@pill/game-core';
 import type { Server } from 'socket.io';
 import type { Room, Player } from './rooms';
 import { playerPublic, pickAttackTargets } from './rooms';
+=======
+} from '@pill/game-core';
+import type { Server } from 'socket.io';
+import type { Room, Player } from './rooms';
+import { playerPublic } from './rooms';
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
 import { randomBytes } from 'node:crypto';
 
 export type BotDifficulty = 'easy' | 'med' | 'hard';
@@ -83,8 +90,11 @@ export function createBotPlayer(difficulty: BotDifficulty, index: number): Playe
     lastBoard: null,
     lastFrame: 0,
     attackBudget: 0,
+<<<<<<< HEAD
     targetMode: 'random',
     lastAttackerId: null,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     watchers: new Set(),
     watching: new Set(),
     token: randomBytes(16).toString('hex'),
@@ -122,11 +132,14 @@ class BotRunner {
       level: this.room.config.level,
       speed: this.room.config.speed,
       diagMatches: this.room.config.diagMatches,
+<<<<<<< HEAD
       counterEnabled: this.room.config.counterEnabled,
       powerupsEnabled: this.room.config.powerupsEnabled,
       powerupFreq: this.room.config.powerupFreq,
       lockStacking: this.room.config.lockStacking,
       lockMaxStack: this.room.config.lockMaxStack,
+=======
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
       aoeEnabled: this.room.config.aoeEnabled,
       aoeThreshold: this.room.config.aoeThreshold,
       missPenaltyEnabled: this.room.config.missPenaltyEnabled,
@@ -224,11 +237,17 @@ class BotRunner {
 
   private emitAttack(attack: AttackInfo) {
     const s = this.state!;
+<<<<<<< HEAD
     // Hedef: oyuncularla aynı kurallarla seçilir (eskiden hep listedeki ilk canlı oyuncuydu,
     // bu da botların aynı kişiye yüklenmesine yol açıyordu).
     const target = pickAttackTargets(this.room, this.player.id, 1, this.player.targetMode, this.player.lastAttackerId)[0];
     if (!target) return;
     target.lastAttackerId = this.player.id;
+=======
+    const alive = [...this.room.players.values()].filter(p => p.alive && p.id !== this.player.id);
+    if (alive.length === 0) return;
+    const target = alive[0];
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
     const seed = (Math.random() * 0xffffffff) >>> 0;
 
     // Eğer hedef de bir bot ise, direkt queueGarbage
@@ -411,7 +430,11 @@ function serverCanFit(board: Board, cap: Capsule): boolean {
 }
 
 function serverSimulate(board: Board, cap: Capsule, colorA: number, colorB: number): Board {
+<<<<<<< HEAD
   const b = cloneBoard(board);
+=======
+  const b = new Uint8Array(board);
+>>>>>>> 8a03358edc3fb59fdd6e1ef7159309797daefb51
   let c = { ...cap };
   for (let dy = 1; dy < ROWS; dy++) {
     const next = { ...c, y: cap.y + dy };
