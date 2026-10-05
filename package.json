@@ -1,0 +1,33 @@
+{
+  "name": "pill-arena",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,yellow \"npm run dev -w @pill/server\" \"npm run dev -w @pill/client\"",
+    "dev:server": "npm run dev -w @pill/server",
+    "dev:client": "npm run dev -w @pill/client",
+    "build": "npm run build -w @pill/client",
+    "db:init": "mysql -u root -p < packages/server/sql/schema.sql",
+    "test:core": "tsx packages/game-core/test/determinism.ts",
+    "test:juice": "tsx packages/client/test/juice.ts",
+    "test:local": "tsx packages/client/test/local.ts",
+    "test:components": "tsx --tsconfig packages/client/tsconfig.test.json packages/client/test/components.tsx",
+    "test:coop": "tsx packages/game-core/test/coop_freeze.ts",
+    "test:render": "tsx packages/client/test/render.ts",
+    "test:server": "tsx packages/server/test/targeting.ts",
+    "test:e2e": "node packages/server/test/e2e.mjs",
+    "test": "npm run test:core && npm run test:coop && npm run test:server && npm run test:juice && npm run test:local && npm run test:components && npm run test:render"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "socket.io-client": "^4.8.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
