@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { sfx } from '../game/audio';
 import ThemePicker from './ThemePicker';
+import { MAX_VS_PLAYERS, MAX_COOP_PLAYERS, defaultPlayerName, type ExtraPlayer } from './localPlayers';
 import { getAllConnectedGamepads, manuallyAssignGamepad, getAssignedGamepadIndex } from '../game/gamepad';
 import type { BotDifficulty } from '../game/bot';
 
@@ -24,6 +25,7 @@ export interface LocalConfig {
 
   counterEnabled: boolean;
   powerupsEnabled: boolean;
+  powerupFreq: number;
 
   missPenaltyEnabled: boolean;
   missPenaltyThreshold: number;
@@ -39,6 +41,8 @@ export interface LocalConfig {
   lockAttackEnabled: boolean;
   lockAttackLen: number;
   lockAttackRequireCombo: boolean;
+  lockStacking: boolean;
+  lockMaxStack: number;
 
   bombEnabled: boolean;
   bombThreshold: number;
@@ -46,6 +50,14 @@ export interface LocalConfig {
   colors: number;
   attackMode: 'random' | 'all';
   sharedBoard: boolean;
+  /** 4. oyuncu ve sonrası (3. oyuncu açıkken): bot ya da gamepadli insan */
+  extraPlayers: ExtraPlayer[];
+  /** Ortak tahta: kapsüller havada birbirinden geçebilsin */
+  coopPassThrough: boolean;
+  /** Ortak tahta: yükselen taban (sonsuz mod) */
+  risingEnabled: boolean;
+  /** Yükselme hızı 1 (yavaş) .. 10 (hızlı) */
+  riseSpeed: number;
   boardCols?: number;
   boardRows?: number;
 }
@@ -82,10 +94,15 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [aoeThreshold, setAoeThreshold] = useState(saved.aoeThreshold ?? 5);
 
   const [sharedBoard, setSharedBoard] = useState(saved.sharedBoard ?? false);
+  const [extraPlayers, setExtraPlayers] = useState<ExtraPlayer[]>(Array.isArray(saved.extraPlayers) ? saved.extraPlayers : []);
+  const [coopPassThrough, setCoopPassThrough] = useState(saved.coopPassThrough ?? false);
+  const [risingEnabled, setRisingEnabled] = useState(saved.risingEnabled ?? false);
+  const [riseSpeed, setRiseSpeed] = useState(saved.riseSpeed ?? 5);
 
   const [missPenaltyEnabled, setMissPenaltyEnabled] = useState(saved.missPenaltyEnabled ?? false);
   const [counterEnabled, setCounterEnabled] = useState(saved.counterEnabled ?? true);
   const [powerupsEnabled, setPowerupsEnabled] = useState(saved.powerupsEnabled ?? true);
+  const [powerupFreq, setPowerupFreq] = useState(saved.powerupFreq ?? 5);
   const [missPenaltyThreshold, setMissPenaltyThreshold] = useState(saved.missPenaltyThreshold ?? 3);
 
   const [normalAttackEnabled, setNormalAttackEnabled] = useState(saved.normalAttackEnabled ?? false);
@@ -99,6 +116,8 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   const [lockAttackEnabled, setLockAttackEnabled] = useState(saved.lockAttackEnabled ?? false);
   const [lockAttackLen, setLockAttackLen] = useState(saved.lockAttackLen ?? 6);
   const [lockAttackRequireCombo, setLockAttackRequireCombo] = useState(saved.lockAttackRequireCombo ?? true);
+  const [lockStacking, setLockStacking] = useState(saved.lockStacking ?? false);
+  const [lockMaxStack, setLockMaxStack] = useState(saved.lockMaxStack ?? 3);
 
   const [colors, setColors] = useState(saved.colors ?? 3);
   const [attackMode, setAttackMode] = useState<'random' | 'all'>(saved.attackMode ?? 'random');
@@ -106,19 +125,19 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
       p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-      counterEnabled, powerupsEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+      counterEnabled, powerupsEnabled, powerupFreq, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
-      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
-      colors, attackMode
+      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo, lockStacking, lockMaxStack,
+      colors, attackMode, extraPlayers, coopPassThrough, risingEnabled, riseSpeed
     }));
   }, [
     p1Name, p2Name, p3Name, level, speed, p2IsBot, p3Enabled, p3IsBot, botDifficulty, p3BotDifficulty,
-    counterEnabled, powerupsEnabled, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
+    counterEnabled, powerupsEnabled, powerupFreq, diagMatches, bombEnabled, bombThreshold, aoeEnabled, aoeThreshold, missPenaltyEnabled, missPenaltyThreshold,
     normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
     stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
-    lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
-    colors, attackMode
+    lockAttackEnabled, lockAttackLen, lockAttackRequireCombo, lockStacking, lockMaxStack,
+    colors, attackMode, extraPlayers, coopPassThrough, risingEnabled, riseSpeed
   ]);
   const [showModal, setShowModal] = useState(false);
   const [allGamepads, setAllGamepads] = useState<Gamepad[]>([]);
@@ -162,27 +181,38 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
       p3BotDifficulty,
       counterEnabled,
       powerupsEnabled,
+      powerupFreq,
       diagMatches,
       bombEnabled, bombThreshold,
       aoeEnabled, aoeThreshold,
       missPenaltyEnabled, missPenaltyThreshold,
       normalAttackEnabled, normalAttackLen, normalAttackRequireCombo,
       stoneAttackEnabled, stoneAttackLen, stoneAttackRequireCombo,
-      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo,
+      lockAttackEnabled, lockAttackLen, lockAttackRequireCombo, lockStacking, lockMaxStack,
       colors,
       attackMode,
       sharedBoard,
+      extraPlayers,
+      coopPassThrough,
+      risingEnabled,
+      riseSpeed,
       boardCols,
       boardRows,
     });
   };
 
+  const maxPlayers = sharedBoard ? MAX_COOP_PLAYERS : MAX_VS_PLAYERS;
+  const rawTotal = p3Enabled ? 3 + extraPlayers.length : 2;
+  const playerTotal = Math.min(rawTotal, maxPlayers);
+  const updateExtra = (i: number, patch: Partial<ExtraPlayer>) =>
+    setExtraPlayers(list => list.map((e, k) => (k === i ? { ...e, ...patch } : e)));
+
   return (
     <div className="local-setup">
-      <h1 className="local-setup-title">Yerel 2 Oyuncu</h1>
+      <h1 className="local-setup-title">Yerel Çok Oyunculu</h1>
       <ThemePicker />
       <p className="local-setup-sub">
-        Tek cihazda iki kişi veya bir bot ile oynayın.<br />
+        Tek cihazda {MAX_VS_PLAYERS} oyuncuya kadar (insan ve bot) oynayın.<br />
         4'lü zincir yaptığınızda rakibinize çöp kapsülü gönderirsiniz.
       </p>
 
@@ -363,6 +393,56 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
         )}
       </div>
 
+      {p3Enabled && (
+        <div className="local-extra-players">
+          {extraPlayers.map((ex, i) => {
+            const idx = 3 + i;
+            const excluded = idx >= maxPlayers;
+            return (
+              <div key={i} className={`panel local-extra-card ${excluded ? 'excluded' : ''}`}>
+                <div className="local-extra-head">
+                  <strong>Oyuncu {idx + 1}</strong>
+                  <button className="btn small outline" onClick={() => setExtraPlayers(l => l.filter((_, k) => k !== i))}>Kaldır</button>
+                </div>
+                <div className="bot-toggle">
+                  <button className={`seg-btn ${!ex.isBot ? 'active' : ''}`} onClick={() => updateExtra(i, { isBot: false })}>🎮 Gamepad</button>
+                  <button className={`seg-btn ${ex.isBot ? 'active' : ''}`} onClick={() => updateExtra(i, { isBot: true })}>🤖 Bot</button>
+                </div>
+                {ex.isBot ? (
+                  <div className="seg">
+                    {(['easy', 'med', 'hard'] as BotDifficulty[]).map(d => (
+                      <button key={d} className={`seg-btn ${ex.difficulty === d ? 'active' : ''}`} onClick={() => updateExtra(i, { difficulty: d })}>
+                        {d === 'easy' ? 'Kolay' : d === 'med' ? 'Orta' : 'Zor'}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      className="text-input"
+                      value={ex.name}
+                      onChange={e => updateExtra(i, { name: e.target.value })}
+                      maxLength={12}
+                      placeholder={defaultPlayerName(idx)}
+                    />
+                    <p className="local-gp-note">Klavyesi yok: <strong>Gamepad {idx + 1}</strong> gerekir</p>
+                  </>
+                )}
+                {excluded && <p className="local-gp-note" style={{ color: 'var(--red)' }}>Ortak tahtada en fazla {MAX_COOP_PLAYERS} oyuncu: bu oyuncu dahil edilmez</p>}
+              </div>
+            );
+          })}
+          {3 + extraPlayers.length < MAX_VS_PLAYERS && (
+            <button
+              className="btn outline local-extra-add"
+              onClick={() => setExtraPlayers(l => [...l, { name: '', isBot: true, difficulty: 'med' }])}
+            >
+              + {4 + extraPlayers.length}. Oyuncuyu Ekle
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="panel local-settings">
         <label className="field">
           <span>Başlangıç seviyesi: {level} ({(level + 1) * 4} virüs)</span>
@@ -401,8 +481,36 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
         <label className="field checkbox-field" style={{ background: 'rgba(0,150,255,0.1)', padding: 10, borderRadius: 8 }}>
           <input type="checkbox" checked={sharedBoard} onChange={e => setSharedBoard(e.target.checked)} />
-          <div><strong>🤝 Ortak Dev Tahta (Co-op)</strong><p className="hint">Oyuncuların tahtaları birleşir, devasa tek bir alanda yan yana oynanır</p></div>
+          <div><strong>🤝 Ortak Dev Tahta (Co-op)</strong><p className="hint">Oyuncuların tahtaları birleşir, devasa tek bir alanda yan yana oynanır (en fazla {MAX_COOP_PLAYERS} oyuncu)</p></div>
         </label>
+
+        {sharedBoard && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, background: 'rgba(0,150,255,0.07)', borderRadius: 8 }}>
+            <label className="field checkbox-field" style={{ margin: 0 }}>
+              <input type="checkbox" checked={coopPassThrough} onChange={e => setCoopPassThrough(e.target.checked)} />
+              <div>
+                <strong>👻 Kapsüller birbirinden geçebilsin</strong>
+                <p className="hint">Havadayken oyuncular birbirine engel olmaz. İkisi aynı yere konarsa üstte kalan kapsül yukarı itilir</p>
+              </div>
+            </label>
+            <label className="field checkbox-field" style={{ margin: 0 }}>
+              <input type="checkbox" checked={risingEnabled} onChange={e => setRisingEnabled(e.target.checked)} />
+              <div>
+                <strong>♾️ Sonsuz Mod (yükselen taban)</strong>
+                <p className="hint">Belirli aralıkla tahta bir satır yükselir, altta seviyeyle orantılı yeni virüsler çıkar. Tahta taşarsa oyun biter, virüsleri bitirmekle kazanılmaz</p>
+              </div>
+            </label>
+            {risingEnabled && (
+              <div style={{ marginLeft: 24 }}>
+                <label className="field" style={{ margin: 0 }}>
+                  <span>Yükselme hızı: {riseSpeed} / 10</span>
+                  <input type="range" min={1} max={10} value={riseSpeed} onChange={e => setRiseSpeed(Number(e.target.value))} />
+                </label>
+                <p className="hint" style={{ margin: '2px 0 0' }}>1 = yaklaşık 25 sn'de bir, 10 = yaklaşık 4 sn'de bir</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* --- TAHTA ÖNİZLEMESİ VE BOYUT AYARLARI --- */}
         <div className="board-preview-container" style={{ display: 'flex', flexDirection: 'column', gap: 15, alignItems: 'center', margin: '15px 0', padding: '20px 15px', background: 'rgba(0,0,0,0.3)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -439,11 +547,11 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
 
           {/* Önizleme Kutuları */}
           <div style={{ display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {Array.from({ length: sharedBoard ? 1 : (p3Enabled ? 3 : 2) }).map((_, i) => {
+            {Array.from({ length: sharedBoard ? 1 : playerTotal }).map((_, i) => {
               const effCols = boardCols;
               const effRows = boardRows;
               const scale = 4;
-              const previewWidth = sharedBoard ? effCols * (p3Enabled ? 3 : 2) * scale : effCols * scale;
+              const previewWidth = sharedBoard ? effCols * playerTotal * scale : effCols * scale;
               const previewHeight = effRows * scale;
 
               return (
@@ -462,13 +570,13 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
                       boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
                       transition: 'all 0.3s ease'
                     }}>
-                      {sharedBoard && Array.from({ length: p3Enabled ? 3 : 2 }).map((_, j) => (
-                        <div key={j} style={{ flex: 1, borderRight: j < (p3Enabled ? 2 : 1) ? '1px dashed rgba(255,255,255,0.2)' : 'none' }} />
+                      {sharedBoard && Array.from({ length: playerTotal }).map((_, j) => (
+                        <div key={j} style={{ flex: 1, borderRight: j < playerTotal - 1 ? '1px dashed rgba(255,255,255,0.2)' : 'none' }} />
                       ))}
                     </div>
                   </div>
 
-                  <span style={{ fontSize: 10, opacity: 0.5 }}>{sharedBoard ? effCols * (p3Enabled ? 3 : 2) : effCols}</span>
+                  <span style={{ fontSize: 10, opacity: 0.5 }}>{sharedBoard ? effCols * playerTotal : effCols}</span>
                 </div>
               );
             })}
@@ -557,6 +665,15 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
               <p className="hint">Ara sıra özel kapsüller düşer: ⚡ Yıldırım, 🛡️ Kalkan, 🌈 Joker, ✨ Temizlik (ortak tahtada: Yıldırım 3 virüsü yok eder, Joker aynı)</p>
             </div>
           </label>
+          {powerupsEnabled && (
+            <div style={{ marginLeft: 24 }}>
+              <label className="field" style={{ margin: 0 }}>
+                <span>Sıklık: {powerupFreq} / 10</span>
+                <input type="range" min={1} max={10} value={powerupFreq} onChange={e => setPowerupFreq(Number(e.target.value))} />
+              </label>
+              <p className="hint" style={{ margin: '2px 0 0' }}>1 = en seyrek, 10 = en sık (yine rastgele düşer)</p>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: 10, background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
@@ -647,6 +764,19 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
                 <input type="checkbox" checked={lockAttackRequireCombo} onChange={e => setLockAttackRequireCombo(e.target.checked)} />
                 <span style={{ fontSize: 13, opacity: 0.9 }}>Zincir/Kombo Zorunlu Mu?</span>
               </label>
+              <label className="field checkbox-field" style={{ margin: 0 }}>
+                <input type="checkbox" checked={lockStacking} onChange={e => setLockStacking(e.target.checked)} />
+                <div>
+                  <span style={{ fontSize: 13, opacity: 0.9 }}>Kilitler üst üste eklensin</span>
+                  <p className="hint" style={{ margin: 0 }}>Kapalıyken zaten kilitli virüse gelen kilit onu açar (eski davranış)</p>
+                </div>
+              </label>
+              {lockStacking && (
+                <label className="field" style={{ margin: 0 }}>
+                  <span>Üst üste en fazla: {lockMaxStack} kilit</span>
+                  <input type="range" min={2} max={10} value={lockMaxStack} onChange={e => setLockMaxStack(Number(e.target.value))} />
+                </label>
+              )}
             </div>
           )}
         </div>

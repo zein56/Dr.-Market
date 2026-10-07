@@ -84,5 +84,20 @@ console.log('\nOda ayarları');
   check('sanitizeConfig: bozuk değerler sınırlanır', bad.colors === 3 && bad.level === DEFAULT_ROOM_CONFIG.level && bad.speed === DEFAULT_ROOM_CONFIG.speed && bad.bombThreshold === 8);
 }
 
+console.log('\nYeni oda ayarları');
+{
+  const d = DEFAULT_ROOM_CONFIG;
+  check('varsayılanlar: sıklık 5, kilit yığınlama kapalı, en fazla 3', d.powerupFreq === 5 && d.lockStacking === false && d.lockMaxStack === 3);
+  check('powerupFreq 1..10 aralığına sınırlanır', sanitizeConfig(d, { powerupFreq: 0 }).powerupFreq === 1 && sanitizeConfig(d, { powerupFreq: 99 }).powerupFreq === 10 && sanitizeConfig(d, { powerupFreq: 7 }).powerupFreq === 7);
+  check('powerupFreq bozuk değerde mevcut değer korunur', sanitizeConfig({ ...d, powerupFreq: 8 }, { powerupFreq: 'x' }).powerupFreq === 8);
+  check('lockMaxStack 2..10 aralığına sınırlanır', sanitizeConfig(d, { lockMaxStack: 1 }).lockMaxStack === 2 && sanitizeConfig(d, { lockMaxStack: 50 }).lockMaxStack === 10);
+  check('lockStacking açılıp kapatılabilir', sanitizeConfig(d, { lockStacking: true }).lockStacking === true && sanitizeConfig({ ...d, lockStacking: true }, { lockStacking: false }).lockStacking === false);
+  check('oda kurulurken de yeni ayarlar doğrulanır', (() => {
+    const host = newPlayer('sx', 'p', null);
+    const room = createRoom('t2', host, { powerupFreq: 500, lockMaxStack: -4, lockStacking: 1 } as any);
+    return room.config.powerupFreq === 10 && room.config.lockMaxStack === 2 && room.config.lockStacking === true;
+  })());
+}
+
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
 process.exit(fail > 0 ? 1 : 0);

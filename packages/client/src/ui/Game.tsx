@@ -129,6 +129,9 @@ export default function Game({
       diagMatches: match.config.diagMatches,
       counterEnabled: match.config.counterEnabled,
       powerupsEnabled: match.config.powerupsEnabled,
+      powerupFreq: match.config.powerupFreq,
+      lockStacking: match.config.lockStacking,
+      lockMaxStack: match.config.lockMaxStack,
       aoeEnabled: match.config.aoeEnabled,
       aoeThreshold: match.config.aoeThreshold,
       missPenaltyEnabled: match.config.missPenaltyEnabled,
@@ -531,7 +534,7 @@ export default function Game({
           )}
         </div>
       )}
-      {landscapeMode == 0 && (
+      {!landscapeMode && (
         <div className="game-hud">
           <div className="hud-item">
             <span className="hud-label">Virüs</span>
@@ -575,7 +578,7 @@ export default function Game({
 
       < div className="game-body">
         <div className="stage" ref={stageRef}>
-          {landscapeMode == 1 && (
+          {landscapeMode && (
             <div className="game-hud">
               <div className="hud-item">
                 <span className="hud-label">Virüs</span>

@@ -5,7 +5,7 @@ import {
   virusCount, virusTopRow
 } from './constants';
 import { Phase, Input, MatchConfig, Capsule, AttackInfo } from './sim';
-import { POWER_STRIKE, POWER_JOKER, POWER_MIN_GAP, POWER_CHANCE } from './powerups';
+import { POWER_STRIKE, POWER_JOKER, powerFreqParams } from './powerups';
 
 export interface CoopGameState {
   cfg: MatchConfig;
@@ -39,6 +39,23 @@ export interface CoopGameState {
   nextPowers: number[];
   powerGaps: number[];
   
+  /**
+   * Oyuncu başına isteğe bağlı yatay sınır [alt, üst): kapsül bu sütun aralığının dışına çıkamaz.
+   * Botlar kendi şeridini oynadığı için kullanılır (DAS tekrarı ya da dönüş şerit dışına taşırmasın).
+   */
+  laneLimits: Array<[number, number] | null>;
+
+  /** Yükselen taban (sonsuz mod) */
+  riseRng: Rng;
+  /** Bir sonraki yükselmeye kalan kare (yalnızca Falling fazında azalır) */
+  riseTimer: number;
+  /** İki yükselme arası kare sayısı */
+  riseInterval: number;
+  /** Şimdiye kadarki yükselme sayısı */
+  riseCount: number;
+  /** Yükselme animasyonunda kalan kare (görsel kayma için) */
+  riseAnim: number;
+
   phaseTimer: number; // Only used when phase = Clearing or Settling
   clearing: number[];
   chain: number;
@@ -124,6 +141,24 @@ function wouldMakeTripleCoop(b: Uint8Array, x: number, y: number, color: number,
 // COOP ENGINE LOGIC
 // ---------------------------------------------------------
 
+/** Yükselme animasyonunun uzunluğu (kare) */
+export const RISE_ANIM_FRAMES = 16;
+/** Yükselmeden bu kadar kare önce uyarı verilir */
+export const RISE_WARN_FRAMES = 120;
+
+/** Yükselme hızı 1 (25 sn) .. 10 (4 sn) → iki yükselme arası kare sayısı (60 kare/sn) */
+export function riseIntervalFrames(speed?: number): number {
+  const n = Math.round(Number(speed));
+  const v = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 5;
+  return Math.round(1500 - ((v - 1) * (1500 - 240)) / 9);
+}
+
+/** Her yükselmede alta eklenecek virüs sayısı: oyun seviyesiyle orantılı (seviye 0 ≈ %10, 20 ≈ %34, en çok yarısı). */
+export function riseRowViruses(level: number, cols: number): number {
+  const lv = Math.max(0, Math.min(20, Number.isFinite(level) ? level : 0));
+  return Math.max(1, Math.min(Math.floor(cols / 2), Math.round(cols * (0.1 + lv * 0.012))));
+}
+
 export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?: number, boardRows?: number): CoopGameState {
   const boardColsPerPlayer = Math.max(4, boardCols ?? 8);
   const rows = Math.max(8, boardRows ?? DEFAULT_ROWS);
@@ -164,6 +199,14 @@ export function createCoopGame(cfg: MatchConfig, playerCount: number, boardCols?
     nextPowers: Array(playerCount).fill(0),
     powerGaps: Array(playerCount).fill(0),
 
+    laneLimits: Array(playerCount).fill(null),
+
+    riseRng: new Rng((cfg.seed ^ 0x2545f491) >>> 0),
+    riseInterval: riseIntervalFrames(cfg.riseSpeed),
+    riseTimer: riseIntervalFrames(cfg.riseSpeed),
+    riseCount: 0,
+    riseAnim: 0,
+
     phaseTimer: 0,
     clearing: [],
     chain: 0,
@@ -186,17 +229,26 @@ function capsuleCells(c: Capsule): [number, number, number, number] {
   }
 }
 
-// Check if fits in board AND doesn't collide with other falling capsules!
-function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): boolean {
+/** Kapsül tahta sınırları içinde ve dolu hücreye değmiyor mu? (diğer kapsüllere bakmaz) */
+function fitsBoardCoop(s: CoopGameState, c: Capsule): boolean {
   const [x1, y1, x2, y2] = capsuleCells(c);
-  if (c.isBomb) {
-    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
-  } else {
-    if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
-    if (x2 < 0 || x2 >= s.cols || y2 < 0 || y2 >= s.rows || getCoop(s.board, x2, y2, s.cols, s.rows) !== EMPTY) return false;
+  if (x1 < 0 || x1 >= s.cols || y1 < 0 || y1 >= s.rows || getCoop(s.board, x1, y1, s.cols, s.rows) !== EMPTY) return false;
+  if (!c.isBomb && (x2 < 0 || x2 >= s.cols || y2 < 0 || y2 >= s.rows || getCoop(s.board, x2, y2, s.cols, s.rows) !== EMPTY)) return false;
+  return true;
+}
+
+// Tahtaya sığıyor mu VE (geçirgen mod kapalıysa) diğer düşen kapsüllere çarpmıyor mu?
+function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): boolean {
+  if (!fitsBoardCoop(s, c)) return false;
+
+  const [x1, y1, x2, y2] = capsuleCells(c);
+  const lane = skipPlayerIndex >= 0 ? s.laneLimits[skipPlayerIndex] : null;
+  if (lane) {
+    if (x1 < lane[0] || x1 >= lane[1]) return false;
+    if (!c.isBomb && (x2 < lane[0] || x2 >= lane[1])) return false;
   }
-  
-  // Collide with other falling capsules?
+
+  if (s.cfg.coopPassThrough) return true; // oyuncular havada birbirine engel olmaz
   for (let p = 0; p < s.playerCount; p++) {
     if (p === skipPlayerIndex) continue;
     const oc = s.capsules[p];
@@ -211,6 +263,47 @@ function fitsCoop(s: CoopGameState, c: Capsule, skipPlayerIndex: number = -1): b
     }
   }
   return true;
+}
+
+/** Düşen kapsüllerin kapladığı hücreler: yerçekimi bunlara parça düşürmez. */
+function capsuleCellSet(s: CoopGameState): Set<number> {
+  const set = new Set<number>();
+  for (let p = 0; p < s.playerCount; p++) {
+    const cap = s.capsules[p];
+    if (!cap) continue;
+    const [x1, y1, x2, y2] = capsuleCells(cap);
+    set.add(y1 * s.cols + x1);
+    if (!cap.isBomb) set.add(y2 * s.cols + x2);
+  }
+  return set;
+}
+
+/**
+ * Bir kapsül tahtaya yerleşince, havada hâlâ onun hücrelerinde duran (geçirgen mod) kapsülleri
+ * yukarı iter: üstteki, yerleşenin tepesine oturur. Sığacak yer yoksa tahta dolmuştur → kayıp.
+ */
+function resolveOverlapsCoop(s: CoopGameState) {
+  for (let q = 0; q < s.playerCount; q++) {
+    const cq = s.capsules[q];
+    if (!cq || fitsBoardCoop(s, cq)) continue;
+    let moved = false;
+    for (let k = 1; k <= s.rows; k++) {
+      const t = { ...cq, y: cq.y - k };
+      if (fitsBoardCoop(s, t)) {
+        s.capsules[q] = t;
+        s.lockTimers[q] = 0;
+        s.gravityTimers[q] = 0;
+        s.events.push(`bump:p${q}`);
+        moved = true;
+        break;
+      }
+    }
+    if (!moved) {
+      s.phase = Phase.Lost;
+      s.events.push('lost');
+      return;
+    }
+  }
 }
 
 function writeHalvesCoop(board: Uint8Array, cols: number, c: Capsule, a: number, b: number) {
@@ -259,7 +352,8 @@ function zapViruses(s: CoopGameState, p: number) {
   s.totalVirusesCleared += zapped.length;
   s.scores[p] += zapped.length * 100;
   // virüsün üstündeki parçalar hemen düşsün
-  while (stepGravityCoop(s.board, s.cols, s.rows)) { /* yerçekimi oturana kadar */ }
+  const blocked = capsuleCellSet(s);
+  while (stepGravityCoop(s.board, s.cols, s.rows, blocked)) { /* yerçekimi oturana kadar */ }
   return zapped;
 }
 
@@ -280,6 +374,7 @@ function lockCapsuleCoop(s: CoopGameState, p: number) {
   s.capsules[p] = null;
   s.capsulesDropped[p]++;
   s.events.push(`lock:p${p}`);
+  if (s.cfg.coopPassThrough) resolveOverlapsCoop(s);
 
   if (c.power === POWER_JOKER) {
     s.events.push('power:joker');
@@ -293,9 +388,10 @@ function lockCapsuleCoop(s: CoopGameState, p: number) {
 /** Bir sonraki kapsülün gücü: ortak tahtada yalnızca joker ya da yıldırım. */
 function rollNextPowerCoop(s: CoopGameState, p: number): number {
   if (!s.cfg.powerupsEnabled) return 0;
+  const { gap, chance } = powerFreqParams(s.cfg.powerupFreq);
   s.powerGaps[p]++;
-  if (s.powerGaps[p] < POWER_MIN_GAP) return 0;
-  if (s.powerRng.next() / 4294967296 >= POWER_CHANCE) return 0;
+  if (s.powerGaps[p] < gap) return 0;
+  if (s.powerRng.next() / 4294967296 >= chance) return 0;
   s.powerGaps[p] = 0;
   return s.powerRng.next() / 4294967296 < 0.6 ? POWER_JOKER : POWER_STRIKE;
 }
@@ -464,9 +560,11 @@ function applyClearCoop(b: Uint8Array, cleared: number[], cols: number, rows: nu
   }
 }
 
-function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
+function stepGravityCoop(b: Uint8Array, cols: number, rows: number, blocked?: Set<number> | null): boolean {
   const moved = new Uint8Array(rows * cols);
   let any = false;
+  // düşen bir kapsülün bulunduğu hücreye parça düşmez (kapsül tahtada değil, ayrı tutuluyor)
+  const free = (x: number, y: number) => getCoop(b, x, y, cols, rows) === EMPTY && !(blocked && blocked.has(y * cols + x));
 
   for (let y = rows - 2; y >= 0; y--) {
     for (let x = 0; x < cols; x++) {
@@ -477,7 +575,7 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
 
       const d = partnerDelta(c);
       if (!d) {
-        if (getCoop(b, x, y + 1, cols, rows) === EMPTY) {
+        if (free(x, y + 1)) {
           setCoop(b, x, y + 1, cols, c);
           b[i] = EMPTY;
           moved[idxCoop(x, y + 1, cols)] = 1;
@@ -492,7 +590,7 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
           continue;
         }
         if (d[1] === 0) {
-          if (getCoop(b, x, y + 1, cols, rows) === EMPTY && getCoop(b, px, py + 1, cols, rows) === EMPTY) {
+          if (free(x, y + 1) && free(px, py + 1)) {
             setCoop(b, x, y + 1, cols, c);
             setCoop(b, px, py + 1, cols, pc);
             b[i] = EMPTY; b[idxCoop(px, py, cols)] = EMPTY;
@@ -502,7 +600,7 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
         } else {
           const lowY = Math.max(y, py);
           const upY = Math.min(y, py);
-          if (getCoop(b, x, lowY + 1, cols, rows) === EMPTY) {
+          if (free(x, lowY + 1)) {
             const lowC = b[idxCoop(x, lowY, cols)];
             const upC = b[idxCoop(x, upY, cols)];
             b[idxCoop(x, lowY, cols)] = EMPTY; b[idxCoop(x, upY, cols)] = EMPTY;
@@ -518,6 +616,225 @@ function stepGravityCoop(b: Uint8Array, cols: number, rows: number): boolean {
 }
 
 // ---------------------------------------------------------
+// YÜKSELEN TABAN (sonsuz mod)
+// ---------------------------------------------------------
+
+/**
+ * Tüm tahtayı bir satır yukarı iter, altta yeni bir virüs satırı açar.
+ * - En üst satırda bir şey varsa taşma: oyun biter.
+ * - Yeni satır, üç'lü oluşturmayacak biçimde rastgele virüslerle doldurulur (sayı seviyeyle orantılı).
+ * - Tahta yükselirken bir kapsülün üstüne çıkarsa, kapsül de yukarı itilir.
+ */
+function riseBoardCoop(s: CoopGameState) {
+  const { cols, rows, board } = s;
+  for (let x = 0; x < cols; x++) {
+    if (board[x] !== EMPTY) {
+      s.phase = Phase.Lost;
+      s.events.push('lost', 'rise_overflow');
+      return;
+    }
+  }
+
+  board.copyWithin(0, cols); // her satır bir yukarı
+  board.fill(EMPTY, (rows - 1) * cols);
+
+  // yeni satır: rastgele sütunlar, eşleşme üretmeyen renkler
+  const want = riseRowViruses(s.cfg.level, cols);
+  const order = Array.from({ length: cols }, (_, i) => i);
+  for (let i = cols - 1; i > 0; i--) {
+    const j = s.riseRng.int(i + 1);
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  let placed = 0;
+  for (let k = 0; k < cols && placed < want; k++) {
+    const x = order[k];
+    const start = s.riseRng.int(s.cfg.colors);
+    for (let i = 0; i < s.cfg.colors; i++) {
+      const color = (start + i) % s.cfg.colors;
+      if (!wouldMakeTripleCoop(board, x, rows - 1, color, cols, rows)) {
+        setCoop(board, x, rows - 1, cols, cell(KIND_VIRUS, color));
+        placed++;
+        break;
+      }
+    }
+  }
+  s.virusesLeft += placed;
+  s.riseCount++;
+  s.riseAnim = RISE_ANIM_FRAMES;
+  s.events.push(`rise:${placed}`);
+
+  // yükselen tahtanın içine giren kapsülleri yukarı it
+  for (let p = 0; p < s.playerCount; p++) {
+    const cap = s.capsules[p];
+    if (!cap || fitsBoardCoop(s, cap)) continue;
+    let moved = false;
+    for (let k = 1; k <= rows; k++) {
+      const t = { ...cap, y: cap.y - k };
+      if (fitsBoardCoop(s, t)) {
+        s.capsules[p] = t;
+        s.lockTimers[p] = 0;
+        moved = true;
+        break;
+      }
+    }
+    if (!moved) {
+      s.phase = Phase.Lost;
+      s.events.push('lost', 'rise_overflow');
+      return;
+    }
+  }
+}
+
+/** Yükselme sayacı: yalnızca Falling fazında işler (eşleşme/yerleşme sürerken durur). */
+function tickRiseCoop(s: CoopGameState) {
+  if (!s.cfg.risingEnabled || s.phase !== Phase.Falling) return;
+  s.riseTimer--;
+  if (s.riseTimer === RISE_WARN_FRAMES) s.events.push('rise_warn');
+  else if (s.riseTimer === 90 || s.riseTimer === 60 || s.riseTimer === 30) s.events.push('rise_tick');
+  if (s.riseTimer <= 0) {
+    s.riseTimer = s.riseInterval;
+    riseBoardCoop(s);
+  }
+}
+
+// ---------------------------------------------------------
+// OYUNCU GÜNCELLEMESİ (HER karede, faz ne olursa olsun)
+// ---------------------------------------------------------
+
+/**
+ * Her oyuncunun girdisini, DAS/yumuşak düşüşünü ve kapsülünü günceller.
+ *
+ * Eskiden bu işlem yalnızca Falling fazında yapılıyordu: biri eşleşme yaparken (Clearing/Settling)
+ * diğer oyuncular donuyor ve bu sürede bırakılan tuşlar kayboluyordu; eşleşme bitince son basılan
+ * yön "takılı" kalıp kapsülü kendi kendine kaydırıyordu. Artık:
+ *  - tuş basma/bırakma durumu her zaman işlenir (takılı tuş olmaz),
+ *  - kapsüller eşleşme sırasında da serbestçe hareket eder ve düşer,
+ *  - yere kilitlenme yalnızca Falling fazında olur; bekleyen kapsül faz dönünce kilitlenir.
+ * @returns bu karede yere kilitlenen oyuncular
+ */
+function updatePlayersCoop(s: CoopGameState, inputsArr: Input[][], canLock: boolean): number[] {
+  const lockers: number[] = [];
+
+  for (let p = 0; p < s.playerCount; p++) {
+    if (s.phase === Phase.Lost || s.phase === Phase.Won) break;
+    const inputs = inputsArr[p] || [];
+
+    // 1) Basılı tuş durumu: kapsül olmasa da, faz ne olursa olsun
+    for (const inp of inputs) {
+      switch (inp) {
+        case Input.Left: s.dasDirs[p] = -1; s.dasTimers[p] = DAS_DELAY; break;
+        case Input.Right: s.dasDirs[p] = 1; s.dasTimers[p] = DAS_DELAY; break;
+        case Input.SoftDropOn: s.softDrops[p] = true; break;
+        case Input.SoftDropOff: s.softDrops[p] = false; s.dasDirs[p] = 0; break;
+      }
+    }
+
+    // 2) Kapsülü yoksa doğma sayacı (doğuş yalnızca Falling fazında)
+    if (!s.capsules[p]) {
+      s.spawningTimers[p] = Math.max(0, s.spawningTimers[p] - 1);
+      if (s.spawningTimers[p] <= 0 && s.phase === Phase.Falling) spawnCoop(s, p);
+      continue;
+    }
+
+    const baseNeed = gravityFrames(s.cfg.speed, s.capsulesDropped[p]);
+
+    // 3) Hareket / dönüş / hızlı bırakma / bomba
+    for (const inp of inputs) {
+      if (!s.capsules[p]) break;
+      let dx = 0, dRot = 0;
+      switch (inp) {
+        case Input.Left: dx = -1; break;
+        case Input.Right: dx = 1; break;
+        case Input.RotateCW: dRot = 1; break;
+        case Input.RotateCCW: dRot = -1; break;
+        case Input.UseBomb:
+          if (s.cfg.bombEnabled && s.bombs[p] > 0 && !s.bombActives[p]) {
+            s.bombs[p]--;
+            s.bombActives[p] = true;
+            s.events.push(`bomb_activated:p${p}`);
+          }
+          break;
+        case Input.HardDrop:
+          while (true) {
+            const cur = s.capsules[p]!;
+            const t = { ...cur, y: cur.y + 1 };
+            if (fitsCoop(s, t, p)) {
+              s.capsules[p] = t;
+              s.scores[p] += 1;
+            } else break;
+          }
+          if (canLock) {
+            lockCapsuleCoop(s, p);
+            lockers.push(p);
+          } else {
+            s.lockTimers[p] = baseNeed; // eşleşme bitince hemen kilitlenir
+          }
+          break;
+      }
+
+      if (dx !== 0 && s.capsules[p]) {
+        const cur = s.capsules[p]!;
+        const t = { ...cur, x: cur.x + dx };
+        if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`move:p${p}`); }
+      }
+
+      if (dRot !== 0 && s.capsules[p]) {
+        const cur = s.capsules[p]!;
+        const nrot = (cur.rot + (dRot > 0 ? 1 : 3)) & 3;
+        const candidates = [{ ...cur, rot: nrot }, { ...cur, rot: nrot, x: cur.x - 1 }, { ...cur, rot: nrot, x: cur.x + 1 }, { ...cur, rot: nrot, y: cur.y + 1 }];
+        for (const t of candidates) {
+          if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`rotate:p${p}`); break; }
+        }
+      }
+    }
+    if (!s.capsules[p]) continue;
+
+    // 4) DAS (basılı tutma ile yana kayma)
+    if (s.dasDirs[p] !== 0) {
+      s.dasTimers[p]--;
+      if (s.dasTimers[p] <= 0) {
+        const cur = s.capsules[p]!;
+        const t = { ...cur, x: cur.x + s.dasDirs[p] };
+        if (fitsCoop(s, t, p)) s.capsules[p] = t;
+        s.dasTimers[p] = DAS_REPEAT;
+      }
+    }
+
+    // 5) Yerçekimi ve kilitlenme
+    s.gravityTimers[p]++;
+    const need = s.softDrops[p] ? SOFT_DROP_FRAMES : baseNeed;
+    const cur = s.capsules[p]!;
+    const below = { ...cur, y: cur.y + 1 };
+    const canFall = fitsCoop(s, below, p);
+
+    if (s.gravityTimers[p] >= need) {
+      s.gravityTimers[p] = 0;
+      if (canFall) {
+        s.capsules[p] = below;
+        s.lockTimers[p] = 0;
+        if (s.softDrops[p]) s.scores[p] += 1;
+        continue;
+      }
+    } else if (canFall) {
+      s.lockTimers[p] = 0;
+      continue;
+    }
+
+    // kapsül yerde: kilit sayacı işler
+    s.lockTimers[p]++;
+    if (s.lockTimers[p] >= baseNeed) {
+      if (canLock) {
+        lockCapsuleCoop(s, p);
+        lockers.push(p);
+      } else {
+        s.lockTimers[p] = baseNeed; // faz dönünce kilitlenir; sayaç taşmasın
+      }
+    }
+  }
+  return lockers;
+}
+
+// ---------------------------------------------------------
 // STEP
 // ---------------------------------------------------------
 export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
@@ -526,122 +843,18 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
     s.frame++;
     return;
   }
+  if (s.riseAnim > 0) s.riseAnim--;
 
-  // --- Falling / Spawning state logic ---
+  // Yükselen taban (yalnızca Falling fazında geri sayar)
+  tickRiseCoop(s);
+  if ((s.phase as Phase) === Phase.Lost) { s.frame++; return; } // yükselme taşmayla oyunu bitirmiş olabilir
+
+  // Oyuncular HER karede güncellenir; yere kilitlenme yalnızca Falling fazında
+  const lockingPlayers = updatePlayersCoop(s, inputsArr, s.phase === Phase.Falling);
+  const endless = !!s.cfg.risingEnabled; // sonsuz modda virüsler biterse oyun bitmez
+
   if (s.phase === Phase.Falling) {
-    let anyLocked = false;
-    let lockingPlayers: number[] = [];
-
-    // Process each player
-    for (let p = 0; p < s.playerCount; p++) {
-      if (!s.capsules[p]) {
-        s.spawningTimers[p]--;
-        if (s.spawningTimers[p] <= 0) {
-          spawnCoop(s, p);
-        }
-        continue;
-      }
-
-      // Process inputs for falling capsules
-      for (const inp of inputsArr[p] || []) {
-        let dx = 0, dRot = 0;
-        switch (inp) {
-          case Input.Left: dx = -1; s.dasDirs[p] = -1; s.dasTimers[p] = DAS_DELAY; break;
-          case Input.Right: dx = 1; s.dasDirs[p] = 1; s.dasTimers[p] = DAS_DELAY; break;
-          case Input.RotateCW: dRot = 1; break;
-          case Input.RotateCCW: dRot = -1; break;
-          case Input.SoftDropOn: s.softDrops[p] = true; break;
-          case Input.SoftDropOff: s.softDrops[p] = false; s.dasDirs[p] = 0; break;
-          case Input.UseBomb:
-            if (s.cfg.bombEnabled && s.bombs[p] > 0 && !s.bombActives[p]) {
-              s.bombs[p]--;
-              s.bombActives[p] = true;
-              s.events.push(`bomb_activated:p${p}`);
-            }
-            break;
-          case Input.HardDrop:
-            while (true) {
-              const c = s.capsules[p]!;
-              const t = { ...c, y: c.y + 1 };
-              if (fitsCoop(s, t, p)) {
-                s.capsules[p] = t;
-                s.scores[p] += 1;
-              } else break;
-            }
-            lockCapsuleCoop(s, p);
-            anyLocked = true;
-            lockingPlayers.push(p);
-            break;
-        }
-
-        if (dx !== 0 && s.capsules[p]) {
-          const c = s.capsules[p]!;
-          const t = { ...c, x: c.x + dx };
-          if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`move:p${p}`); }
-        }
-
-        if (dRot !== 0 && s.capsules[p]) {
-          const c = s.capsules[p]!;
-          const nrot = (c.rot + (dRot > 0 ? 1 : 3)) & 3;
-          const candidates = [{ ...c, rot: nrot }, { ...c, rot: nrot, x: c.x - 1 }, { ...c, rot: nrot, x: c.x + 1 }, { ...c, rot: nrot, y: c.y + 1 }];
-          for (const t of candidates) {
-            if (fitsCoop(s, t, p)) { s.capsules[p] = t; s.events.push(`rotate:p${p}`); break; }
-          }
-        }
-      }
-
-      // DAS handling
-      if (s.dasDirs[p] !== 0 && s.capsules[p]) {
-        s.dasTimers[p]--;
-        if (s.dasTimers[p] <= 0) {
-          const c = s.capsules[p]!;
-          const t = { ...c, x: c.x + s.dasDirs[p] };
-          if (fitsCoop(s, t, p)) { s.capsules[p] = t; }
-          s.dasTimers[p] = DAS_REPEAT;
-        }
-      }
-
-      // Gravity Handling
-      if (s.capsules[p]) {
-        s.gravityTimers[p]++;
-        const baseNeed = gravityFrames(s.cfg.speed, s.capsulesDropped[p]);
-        const need = s.softDrops[p] ? SOFT_DROP_FRAMES : baseNeed;
-
-        if (s.gravityTimers[p] >= need) {
-          s.gravityTimers[p] = 0;
-          const c = s.capsules[p]!;
-          const t = { ...c, y: c.y + 1 };
-          if (fitsCoop(s, t, p)) {
-            s.capsules[p] = t;
-            s.lockTimers[p] = 0;
-            if (s.softDrops[p]) s.scores[p] += 1;
-          } else {
-            s.lockTimers[p]++;
-            if (s.lockTimers[p] >= baseNeed) {
-              lockCapsuleCoop(s, p);
-              anyLocked = true;
-              lockingPlayers.push(p);
-            }
-          }
-        } else {
-          // If on floor, lock timer increments anyway
-          const c = s.capsules[p]!;
-          const t = { ...c, y: c.y + 1 };
-          if (!fitsCoop(s, t, p)) {
-            s.lockTimers[p]++;
-            if (s.lockTimers[p] >= baseNeed) {
-              lockCapsuleCoop(s, p);
-              anyLocked = true;
-              lockingPlayers.push(p);
-            }
-          } else {
-            s.lockTimers[p] = 0;
-          }
-        }
-      }
-    }
-
-    if (anyLocked) {
+    if (lockingPlayers.length > 0) {
       const m = findMatchesCoop(s.board, s);
       if (m.cleared.length > 0) {
         s.chain++;
@@ -654,25 +867,23 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
         s.clearing = m.cleared;
         s.virusesLeft -= m.virusesCleared;
         s.totalVirusesCleared += m.virusesCleared;
-        
+
         // Give score to the primary locking player
         const mainP = lockingPlayers[0];
         s.scores[mainP] += m.cleared.length * 10 * s.chain + m.virusesCleared * 100 + m.stonesCleared * 50;
-        
+
         s.phase = Phase.Clearing;
         s.phaseTimer = CLEAR_ANIM_FRAMES;
         s.events.push(s.chain > 1 ? 'chain' : 'clear');
         if (m.virusesCleared > 0) s.events.push('virus');
       } else {
         s.chain = 0;
-        if (s.virusesLeft <= 0) {
+        if (s.virusesLeft <= 0 && !endless) {
           s.phase = Phase.Won;
           s.events.push('won');
         } else {
           // set spawning delays for those who locked
-          for (const p of lockingPlayers) {
-            s.spawningTimers[p] = SPAWN_DELAY;
-          }
+          for (const p of lockingPlayers) s.spawningTimers[p] = SPAWN_DELAY;
         }
       }
     }
@@ -687,7 +898,8 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
   } else if (s.phase === Phase.Settling) {
     s.phaseTimer--;
     if (s.phaseTimer <= 0) {
-      const moved = stepGravityCoop(s.board, s.cols, s.rows);
+      // düşen kapsüllerin bulunduğu hücrelere parça düşmez
+      const moved = stepGravityCoop(s.board, s.cols, s.rows, capsuleCellSet(s));
       if (moved) {
         s.phaseTimer = FALL_STEP_FRAMES;
       } else {
@@ -705,7 +917,7 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
           if (m.virusesCleared > 0) s.events.push('virus');
         } else {
           s.chain = 0;
-          if (s.virusesLeft <= 0) {
+          if (s.virusesLeft <= 0 && !endless) {
             s.phase = Phase.Won;
             s.events.push('won');
           } else {
@@ -715,6 +927,6 @@ export function stepCoop(s: CoopGameState, inputsArr: Input[][]): void {
       }
     }
   }
-  
+
   s.frame++;
 }

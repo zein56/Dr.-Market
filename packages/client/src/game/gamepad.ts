@@ -73,6 +73,20 @@ export function getAssignedGamepadIndex(playerIndex: number): number | null {
   return (index === undefined || index === -1) ? null : index;
 }
 
+/**
+ * Bu oyuncuya atanmış VE şu an bağlı bir gamepad var mı? (çıkarılmış bir gamepad atanmış
+ * kalabilir; o durumda oyuncunun klavyesi kilitlenmemeli)
+ */
+export function isGamepadActive(playerIndex: number): boolean {
+  const idx = getAssignedGamepadIndex(playerIndex);
+  if (idx === null) return false;
+  try {
+    return !!navigator.getGamepads?.()[idx]?.connected;
+  } catch {
+    return false;
+  }
+}
+
 export function clearGamepadAssignment(playerIndex: number): void {
   delete assignedGamepads[playerIndex];
 }

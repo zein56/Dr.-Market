@@ -131,6 +131,27 @@ console.log('\nTahta çizimi');
   check('ortak tahta çizimi (3 oyuncu, güçlü kapsüller) her temada hatasız', ok, msg);
 }
 {
+  // yükselen taban: canavar, uyarı parıltısı ve kayma animasyonu her temada, 2-4 oyuncuyla
+  let ok = true, msg = '';
+  for (const id of THEME_IDS) {
+    applyTheme(id, false);
+    for (const players of [2, 3, 4]) {
+      for (const [timer, anim, count] of [[900, 0, 0], [60, 0, 3], [10, 0, 9], [900, 14, 12]] as const) {
+        const g: any = createCoopGame({ seed: 8, level: 6, speed: 'med', colors: 10, risingEnabled: true, riseSpeed: 7 }, players);
+        g.riseTimer = timer; g.riseAnim = anim; g.riseCount = count;
+        g.capsules[0] = { x: 2, y: 4, rot: 0, a: 0, b: 1 };
+        const ctx = fakeCtx();
+        try {
+          drawBoard(ctx, g.board, { cols: g.cols, rows: g.rows, cellSize: 24, showGhost: true, clearing: [], clearPulse: 0 }, g);
+          const s = stat(ctx);
+          if (s.depth !== 0 || s.minDepth < 0) { ok = false; msg = `${id}/${players}oy/timer${timer} save-restore=${s.depth}`; }
+        } catch (e: any) { ok = false; msg = `${id}/${players}oy/timer${timer}: ${e.message}`; }
+      }
+    }
+  }
+  check('yükselen taban (canavar + uyarı + kayma) 5 tema x 2-4 oyuncu hatasız, dengeli', ok, msg);
+}
+{
   const ctx = fakeCtx();
   let ok = true;
   try {

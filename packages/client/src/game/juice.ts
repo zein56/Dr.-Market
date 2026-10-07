@@ -85,6 +85,13 @@ export class Juice {
         this.shake(11, 22);
       } else if (ev.startsWith('explosion:')) {
         this.shake(5, 12);
+      } else if (ev === 'rise_warn') {
+        this.announce('⚠️ YÜKSELİYOR!', cols, s.board.length / cols, '#FF5A3C', 0.95);
+        this.shake(2, 10);
+      } else if (ev === 'rise_tick') {
+        this.shake(1.6, 5);
+      } else if (ev.startsWith('rise:')) {
+        this.onRise(parseInt(ev.slice(5), 10) || 0, cols, s.board.length / cols);
       } else if (ev.startsWith('power:')) {
         this.onPower(ev.slice(6), cols, s.board.length / cols);
       } else if (ev === 'shield_block') {
@@ -152,6 +159,25 @@ export class Juice {
       this.shake(Math.min(2 + chain * 1.6, 10), 8 + Math.min(chain, 6) * 2);
     } else {
       this.shake(1.2, 5);
+    }
+  }
+
+  /** Taban yükseldi: büyük sarsıntı ve alt kenardan toz. */
+  private onRise(n: number, cols: number, rows: number) {
+    this.shake(9, 22);
+    if (n > 0) this.announce(`⬆ +${n} virüs`, cols, rows, '#FFB74D', 0.9);
+    if (this.reduced) return;
+    for (let i = 0; i < Math.min(cols * 3, 90); i++) {
+      this.addParticle({
+        x: Math.random() * cols,
+        y: rows - 0.2,
+        vx: (Math.random() - 0.5) * 0.08,
+        vy: -(0.05 + Math.random() * 0.2),
+        life: 0,
+        max: 24 + Math.floor(Math.random() * 20),
+        size: 0.1 + Math.random() * 0.14,
+        color: i % 3 ? '#B8AE98' : '#E0D8C4',
+      });
     }
   }
 

@@ -29,6 +29,7 @@ import {
   type Board,
   type Capsule,
   type AttackInfo,
+  cloneBoard,
 } from '@pill/game-core';
 import type { Server } from 'socket.io';
 import type { Room, Player } from './rooms';
@@ -123,6 +124,9 @@ class BotRunner {
       diagMatches: this.room.config.diagMatches,
       counterEnabled: this.room.config.counterEnabled,
       powerupsEnabled: this.room.config.powerupsEnabled,
+      powerupFreq: this.room.config.powerupFreq,
+      lockStacking: this.room.config.lockStacking,
+      lockMaxStack: this.room.config.lockMaxStack,
       aoeEnabled: this.room.config.aoeEnabled,
       aoeThreshold: this.room.config.aoeThreshold,
       missPenaltyEnabled: this.room.config.missPenaltyEnabled,
@@ -407,7 +411,7 @@ function serverCanFit(board: Board, cap: Capsule): boolean {
 }
 
 function serverSimulate(board: Board, cap: Capsule, colorA: number, colorB: number): Board {
-  const b = new Uint8Array(board);
+  const b = cloneBoard(board);
   let c = { ...cap };
   for (let dy = 1; dy < ROWS; dy++) {
     const next = { ...c, y: cap.y + dy };

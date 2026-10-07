@@ -26,6 +26,8 @@ import {
   hasLock,
   removeLock,
   addLock,
+  getLockCount,
+  MAX_LOCK_LEVEL,
 } from './constants';
 import {
   Board,
@@ -47,8 +49,7 @@ import {
   POWER_JOKER,
   POWER_CLEANSE,
   POWER_NAMES,
-  POWER_MIN_GAP,
-  POWER_CHANCE,
+  powerFreqParams,
   STRIKE_AMOUNT,
   SHIELD_MAX,
   pickPower,
@@ -110,6 +111,20 @@ export interface MatchConfig {
 
   /** Güçlendirici kapsüller (bkz. powerups.ts). Verilmezse kapalı. */
   powerupsEnabled?: boolean;
+  /** Güçlendirici sıklığı 1 (seyrek) .. 10 (sık). Varsayılan 5. */
+  powerupFreq?: number;
+
+  /** Kilit saldırısı aynı virüse üst üste eklenebilsin mi? Kapalıysa zaten kilitli virüse gelen kilit onu açar. */
+  lockStacking?: boolean;
+  /** Üst üste en fazla kaç kilit katmanı (2..10). Varsayılan 3. */
+  lockMaxStack?: number;
+
+  /** Ortak tahta: oyuncuların kapsülleri havada birbirinden geçebilir (yere konarken üstte kalan itilir). */
+  coopPassThrough?: boolean;
+  /** Ortak tahta: yükselen taban (sonsuz mod). Belirli aralıkla tahta bir satır yükselir, altta yeni virüs satırı çıkar. */
+  risingEnabled?: boolean;
+  /** Yükselme hızı 1 (yavaş) .. 10 (hızlı). Varsayılan 5. */
+  riseSpeed?: number;
 }
 
 export interface Capsule {
@@ -386,9 +401,10 @@ function lockCapsule(s: GameState) {
 /** Bir sonraki kapsülün gücünü belirler (kapalıysa RNG'ye dokunmaz). */
 function rollNextPower(s: GameState): number {
   if (!s.cfg.powerupsEnabled) return 0;
+  const { gap, chance } = powerFreqParams(s.cfg.powerupFreq);
   s.powerGap++;
-  if (s.powerGap < POWER_MIN_GAP) return 0;
-  if (s.powerRng.next() / 4294967296 >= POWER_CHANCE) return 0;
+  if (s.powerGap < gap) return 0;
+  if (s.powerRng.next() / 4294967296 >= chance) return 0;
   s.powerGap = 0;
   return pickPower(s.powerRng.next() / 4294967296);
 }
@@ -825,10 +841,21 @@ export function queueGarbage(s: GameState, attack: AttackInfo, seed: number) {
     for (let i = 0; i < s.board.length; i++) {
       if (isVirus(s.board[i])) viruses.push(i);
     }
-    if (viruses.length > 0) {
+    if (s.cfg.lockStacking) {
+      // Üst üste ekleme: sınıra ulaşmamış virüslerden rastgele biri seçilir
+      const maxLvl = Math.min(MAX_LOCK_LEVEL, Math.max(1, Math.round(s.cfg.lockMaxStack ?? 3)));
+      for (let i = 0; i < attack.lock; i++) {
+        const open = viruses.filter((v) => getLockCount(s.board[v]) < maxLvl);
+        if (open.length === 0) break;
+        const target = open[rng.int(open.length)];
+        s.board[target] = addLock(s.board[target], maxLvl);
+        s.events.push(`lock_applied:${target}`);
+      }
+    } else if (viruses.length > 0) {
+      // Varsayılan (eski davranış): zaten kilitli virüse gelen kilit onu açar
       for (let i = 0; i < attack.lock; i++) {
         const target = viruses[rng.int(viruses.length)];
-        s.board[target] = addLock(s.board[target]);
+        s.board[target] = hasLock(s.board[target]) ? removeLock(s.board[target]) : addLock(s.board[target]);
         s.events.push(`lock_applied:${target}`);
       }
     }

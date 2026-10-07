@@ -18,25 +18,46 @@ export const KIND_DOWN = 5; // eşi üstümde
 export const KIND_STONE = 6; // kalıcı taş
 export const KIND_BOMB = 7; // bomba hücresi
 
-/** Hücre kodlaması: 0 = boş, aksi halde 1 + kind*10 + color (1..70). Bit 7+ (128+) = kilit sayısı */
+/**
+ * Hücre kodlaması (Uint8):
+ *  - 0 = boş
+ *  - 1..80          : 1 + kind*10 + color (normal hücreler)
+ *  - 81..(81+10*N)  : KİLİTLİ VİRÜS. Değer = LOCK_BASE + (seviye-1)*10 + color
+ *                     seviye 1..MAX_LOCK_LEVEL (her eşleşme bir seviye kırar)
+ *
+ * Eski kodlama kilidi 7. bitte (+128) tutuyordu; bu tek kilit taşıyabiliyordu ve ikinci kilit
+ * Uint8Array'e sığmadan taşıp kilidi siliyordu. Yeni kodlama seviyeleri doğrudan taşır.
+ */
 export const EMPTY = 0;
+export const LOCK_BASE = 81;
+/** Bir virüsün taşıyabileceği en fazla kilit katmanı (81 + 9*10 + 9 = 180 < 256) */
+export const MAX_LOCK_LEVEL = 10;
 
-export function stripLocks(c: number): number {
-  return c & 127;
+export function hasLock(c: number): boolean {
+  return c >= LOCK_BASE;
 }
 export function getLockCount(c: number): number {
-  return c >> 7;
+  return c >= LOCK_BASE ? Math.floor((c - LOCK_BASE) / MAX_COLORS) + 1 : 0;
 }
-export function addLock(c: number): number {
-  if (getLockCount(c) >= 7) return c;
-  return c + 128;
+/** Kilidi sök: kilitli virüs → kilitsiz aynı renk virüs; diğer hücreler aynen kalır. */
+export function stripLocks(c: number): number {
+  return c >= LOCK_BASE ? 1 + KIND_VIRUS * MAX_COLORS + ((c - LOCK_BASE) % MAX_COLORS) : c;
 }
+/** Bir kilit katmanı ekler (yalnızca virüsler kilitlenir). max: ulaşılabilecek en yüksek seviye. */
+export function addLock(c: number, max: number = MAX_LOCK_LEVEL): number {
+  if (c === EMPTY) return c;
+  const base = stripLocks(c);
+  if ((((base - 1) / MAX_COLORS) | 0) !== KIND_VIRUS) return c;
+  const lvl = getLockCount(c);
+  if (lvl >= Math.min(max, MAX_LOCK_LEVEL)) return c;
+  return LOCK_BASE + lvl * MAX_COLORS + ((base - 1) % MAX_COLORS);
+}
+/** Bir kilit katmanını kaldırır. */
 export function removeLock(c: number): number {
-  if (getLockCount(c) <= 0) return c;
-  return c - 128;
-}
-export function hasLock(c: number): boolean {
-  return c >= 128;
+  const lvl = getLockCount(c);
+  if (lvl <= 0) return c;
+  if (lvl === 1) return stripLocks(c);
+  return LOCK_BASE + (lvl - 2) * MAX_COLORS + ((stripLocks(c) - 1) % MAX_COLORS);
 }
 
 export function cell(kind: number, color: number): number {

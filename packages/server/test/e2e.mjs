@@ -72,6 +72,12 @@ try {
   await sleep(300);
   check('güçlendiriciler tekrar açılır, bozuk ayar yok sayılır', A.room?.config?.powerupsEnabled === true && A.room?.config?.colors === 3);
 
+  A.s.emit('room_config_update', { config: { powerupFreq: 99, lockStacking: true, lockMaxStack: 7 } });
+  await sleep(300);
+  check('güç sıklığı sınırlanır, kilit yığınlama ayarları işlenir', A.room?.config?.powerupFreq === 10 && A.room?.config?.lockStacking === true && A.room?.config?.lockMaxStack === 7);
+  A.s.emit('room_config_update', { config: { powerupFreq: 5, lockStacking: false, lockMaxStack: 3 } });
+  await sleep(300);
+
   A.s.emit('start');
   await sleep(800);
   B.s.emit('board_sync', { frame: 10, board: 'abc', viruses: 2, score: 0 });

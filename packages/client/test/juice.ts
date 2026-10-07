@@ -112,5 +112,22 @@ console.log('\nJuice');
   check('zap: kıvılcımlar çizilir, bozuk indeks çökertmez', draws > 0);
 }
 
+{
+  // yükselen taban olayları
+  for (const ev of ['rise_warn', 'rise_tick', 'rise:3', 'rise:0', 'rise:abc']) {
+    const q = new Juice();
+    const cv: any = { style: { transform: '' } };
+    draws = 0;
+    q.handle({ events: [ev], clearing: [], board, chain: 0 }, COLS);
+    q.update(); q.draw(fakeCtx, 30, COLS); q.applyShake(cv);
+    check(`${ev}: sarsıntı uygulanır`, cv.style.transform.startsWith('translate('));
+  }
+  const q = new Juice();
+  draws = 0;
+  q.handle({ events: ['rise:5'], clearing: [], board, chain: 0 }, COLS);
+  q.update(); q.draw(fakeCtx, 30, COLS);
+  check('rise:N: toz parçacıkları ve yazı çizilir', draws > 20, `draws=${draws}`);
+}
+
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
 if (fail > 0) process.exit(1);

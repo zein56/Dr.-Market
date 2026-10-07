@@ -110,7 +110,7 @@ export default function Lobby({
               <div className="room-meta">
                 <span className="room-name">
                   {r.name}{' '}
-                  {(r.config.diagMatches || r.config.aoeEnabled || r.config.normalAttackEnabled || r.config.stoneAttackEnabled || r.config.lockAttackEnabled || r.config.missPenaltyEnabled || r.config.bombEnabled) && (
+                  {/* {(r.config.diagMatches || r.config.aoeEnabled || r.config.normalAttackEnabled || r.config.stoneAttackEnabled || r.config.lockAttackEnabled || r.config.missPenaltyEnabled || r.config.bombEnabled) && (
                     <span className="hard-badge">
                       {[
                         r.config.diagMatches && '🔀', 
@@ -120,7 +120,7 @@ export default function Lobby({
                         r.config.bombEnabled && '💣',
                       ].filter(Boolean).join(' ')}
                     </span>
-                  )}
+                  )} */}
                 </span>
                 <span className="room-sub">
                   {r.code} · seviye {r.config.level} ·{' '}

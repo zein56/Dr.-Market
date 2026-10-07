@@ -27,10 +27,33 @@ export const POWER_NAMES: Record<number, string> = {
   [POWER_CLEANSE]: 'cleanse',
 };
 
-/** İki güçlü kapsül arasında en az bu kadar normal kapsül düşer */
-export const POWER_MIN_GAP = 8;
-/** Bekleme süresi dolduktan sonra her yeni kapsülün güçlü olma olasılığı */
-export const POWER_CHANCE = 0.25;
+/** Varsayılan sıklık seviyesi (1..10) */
+export const DEFAULT_POWER_FREQ = 5;
+
+// Sıklık seviyesi 1 (en seyrek) .. 10 (en sık). Her seviye iki sayı belirler:
+//  - GAPS   : iki güçlü kapsül arasında EN AZ kaç normal kapsül düşer
+//  - CHANCES: bu bekleme dolduktan sonra her yeni kapsülün güçlü olma olasılığı
+// Yani seviye bir "kaçıncı hamlede bir" sayacı DEĞİL; sadece sıklığın ölçeğidir ve hâlâ rastgeledir.
+// Ortalama aralık ≈ GAP + 1/CHANCE kapsül: seviye 1 ≈ 26, seviye 5 ≈ 12, seviye 10 ≈ 3.5.
+const GAPS = [16, 14, 12, 10, 8, 6, 5, 4, 3, 2];
+const CHANCES = [0.1, 0.14, 0.18, 0.22, 0.25, 0.3, 0.36, 0.43, 0.52, 0.65];
+
+/** Seviyeyi (bozuk/eksik değer dahil) 1..10 aralığına oturtur. */
+export function normalizePowerFreq(freq?: number): number {
+  const n = Math.round(Number(freq));
+  if (!Number.isFinite(n)) return DEFAULT_POWER_FREQ;
+  return Math.min(10, Math.max(1, n));
+}
+
+export function powerFreqParams(freq?: number): { gap: number; chance: number } {
+  const i = normalizePowerFreq(freq) - 1;
+  return { gap: GAPS[i], chance: CHANCES[i] };
+}
+
+/** İki güçlü kapsül arasında en az bu kadar normal kapsül düşer (varsayılan seviye) */
+export const POWER_MIN_GAP = GAPS[DEFAULT_POWER_FREQ - 1];
+/** Bekleme dolduktan sonra her yeni kapsülün güçlü olma olasılığı (varsayılan seviye) */
+export const POWER_CHANCE = CHANCES[DEFAULT_POWER_FREQ - 1];
 /** Yıldırımın gönderdiği çöp sayısı */
 export const STRIKE_AMOUNT = 4;
 /** Aynı anda biriktirilebilecek en fazla kalkan */

@@ -19,6 +19,8 @@ import {
   type GameState,
   POWER_JOKER,
   POWER_SHIELD,
+  RISE_ANIM_FRAMES,
+  RISE_WARN_FRAMES,
 } from '@pill/game-core';
 import { currentTheme, withAlpha, type Swatch } from './themes';
 import { drawVirusCharacter, type Mood } from './characters';
@@ -87,6 +89,13 @@ export function drawBoard(
   const blink = clearingSet ? Math.floor((opts.clearPulse ?? 0) / 3) % 2 === 0 : false;
   const fc = buildFaceContext(board, cols, rows, s, clearingSet, state);
 
+  const rising = !!state?.cfg?.risingEnabled && typeof state.riseTimer === 'number';
+  if (rising) drawRiseMonster(ctx, w, h, s, state, fc.look);
+  // tahta bir satır yükseldiğinde hücreler aşağıdan yukarı kayarak yerine oturur (yalnızca görsel)
+  const riseShift = rising && state.riseAnim > 0 ? (state.riseAnim / RISE_ANIM_FRAMES) * s : 0;
+  ctx.save();
+  if (riseShift > 0) ctx.translate(0, riseShift);
+
   for (let y = 0; y < rows; y++) {
     for (let x = 0; x < cols; x++) {
       const i = y * cols + x;
@@ -102,6 +111,8 @@ export function drawBoard(
       drawCell(ctx, c, x * s, y * s, s, fc, fc.scared?.has(i) ? 'scared' : undefined);
     }
   }
+  ctx.restore();
+  if (rising) drawRiseWarning(ctx, w, h, s, state.riseTimer);
 
   // düşmekte olan kapsül (tek oyunculu) ve ortak tahta kapsülleri
   if (state?.capsule) drawFallingCapsule(ctx, board, state.capsule, s, cols, !!opts.showGhost);
@@ -210,6 +221,52 @@ export function drawBoard(
       }
     }
   }
+}
+
+/**
+ * Yükselen taban (sonsuz mod): tahtanın dibinde, hücrelerin ARKASINDA duran dev canavar.
+ * Normalde sönük ve sakindir; yükselmeye 2 saniye kala belirginleşip kahkaha atar,
+ * tahta yükselirken kükrer. Gözleri düşen kapsülü takip eder.
+ */
+function drawRiseMonster(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  s: number,
+  state: any,
+  look: { x: number; y: number } | null
+) {
+  const timer: number = state.riseTimer;
+  const warn = timer <= RISE_WARN_FRAMES ? 1 - timer / RISE_WARN_FRAMES : 0;
+  const roar = state.riseAnim > 0 ? state.riseAnim / RISE_ANIM_FRAMES : 0;
+  const size = Math.min(w * 0.42, h * 0.5) * (1 + 0.12 * roar + 0.04 * Math.sin(tick * 0.06));
+  const color = Math.abs(state.riseCount || 0) % 10;
+  const px = (w - size) / 2;
+  const py = h - size * 0.72; // başı tahtadan yukarı çıkar, gövdesi dipte kalır
+
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.5, 0.15 + warn * 0.25 + roar * 0.2);
+  drawVirusCharacter(ctx, px, py, size, color, getPaletteColor(color), {
+    mood: warn > 0 || roar > 0 ? 'cackle' : 'calm',
+    look: look ? { dx: look.x - (px + size / 2), dy: look.y - (py + size / 2) } : null,
+    tick,
+    style: currentTheme().style,
+  });
+  ctx.restore();
+}
+
+/** Yükselmeye kala alt kenarda nabız gibi atan kırmızı uyarı. */
+function drawRiseWarning(ctx: CanvasRenderingContext2D, w: number, h: number, s: number, timer: number) {
+  if (timer > RISE_WARN_FRAMES) return;
+  const k = 1 - timer / RISE_WARN_FRAMES; // 0 → 1
+  const pulse = 0.5 + 0.5 * Math.sin(tick * (0.25 + k * 0.4));
+  const g = ctx.createLinearGradient(0, h - s * 1.4, 0, h);
+  g.addColorStop(0, 'rgba(255, 70, 50, 0)');
+  g.addColorStop(1, `rgba(255, 70, 50, ${(0.18 + 0.4 * pulse) * (0.4 + 0.6 * k)})`);
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(0, h - s * 1.4, w, s * 1.4);
+  ctx.restore();
 }
 
 /** Tek kare için tüm virüslerin ortak yüz bilgisi */

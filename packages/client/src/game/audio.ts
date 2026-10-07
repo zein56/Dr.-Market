@@ -108,6 +108,14 @@ export function sfx(name: string, level = 0) {
     case 'clear':
       [79, 84, 88].forEach((n, i) => note(N(n), t + i * 0.045, 0.14, 'square', 0.16, sfxGain!));
       break;
+    case 'rise': // taban yükseliyor: alçak gümbürtü
+      note(N(31), t, 0.45, 'sawtooth', 0.26, sfxGain!);
+      note(N(38), t + 0.04, 0.3, 'square', 0.2, sfxGain!);
+      note(N(26), t + 0.12, 0.4, 'sawtooth', 0.2, sfxGain!);
+      break;
+    case 'warn': // yükselmeye az kaldı: kısa uyarı tıkı
+      note(N(79), t, 0.06, 'square', 0.12, sfxGain!);
+      break;
     case 'power': // güçlendirici: yükselen pırıltı
       [84, 88, 91, 96].forEach((n, i) => note(N(n), t + i * 0.04, 0.12, 'triangle', 0.18, sfxGain!));
       break;

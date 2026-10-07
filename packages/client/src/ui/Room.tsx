@@ -215,6 +215,16 @@ export default function RoomView({
                   <p className="hint">Ara sıra özel kapsüller düşer: ⚡ Yıldırım (rakibe 4 çöp), 🛡️ Kalkan (bir saldırıyı emer), 🌈 Joker (en iyi renge dönüşür), ✨ Temizlik (taşları ve kilitleri siler)</p>
                 </div>
               </label>
+              {cfg.powerupsEnabled !== false && (
+                <div style={{ marginLeft: 20 }}>
+                  <label className="field" style={{ margin: 0 }}>
+                    <span>Sıklık: {cfg.powerupFreq ?? 5} / 10</span>
+                    <input type="range" min={1} max={10} value={cfg.powerupFreq ?? 5} disabled={!isHost}
+                      onChange={e => updateCfg({ powerupFreq: Number(e.target.value) })} />
+                  </label>
+                  <p className="hint" style={{ margin: '2px 0 0' }}>1 = en seyrek, 10 = en sık (yine rastgele düşer)</p>
+                </div>
+              )}
             </div>
 
             {/* Hata Cezası */}
@@ -294,6 +304,18 @@ export default function RoomView({
                       onChange={e => updateCfg({ lockAttackRequireCombo: e.target.checked })} />
                     <span style={{ fontSize: 12 }}>Kombo zorunlu</span>
                   </label>
+                  <label className="field checkbox-field" style={{ margin: 0 }}>
+                    <input type="checkbox" checked={!!cfg.lockStacking} disabled={!isHost}
+                      onChange={e => updateCfg({ lockStacking: e.target.checked })} />
+                    <span style={{ fontSize: 12 }}>Kilitler üst üste eklensin <span className="hint">(kapalıyken zaten kilitli virüse gelen kilit onu açar)</span></span>
+                  </label>
+                  {cfg.lockStacking && (
+                    <label className="field" style={{ margin: 0 }}>
+                      <span>Üst üste en fazla: {cfg.lockMaxStack ?? 3} kilit</span>
+                      <input type="range" min={2} max={10} value={cfg.lockMaxStack ?? 3} disabled={!isHost}
+                        onChange={e => updateCfg({ lockMaxStack: Number(e.target.value) })} />
+                    </label>
+                  )}
                 </div>
               )}
             </div>

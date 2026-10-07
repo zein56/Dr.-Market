@@ -31,6 +31,8 @@ export interface RoomConfig {
 
   /** Güçlendirici kapsüller: ⚡ yıldırım, 🛡️ kalkan, 🌈 joker, 🧽 temizlik. */
   powerupsEnabled?: boolean;
+  /** Güçlendirici sıklığı: 1 (seyrek) .. 10 (sık). Varsayılan 5. */
+  powerupFreq?: number;
 
   aoeEnabled?: boolean;
   aoeThreshold?: number;
@@ -49,6 +51,10 @@ export interface RoomConfig {
   lockAttackEnabled?: boolean;
   lockAttackLen?: number;
   lockAttackRequireCombo?: boolean;
+  /** Kilitler aynı virüse üst üste eklenebilsin (kapalıysa zaten kilitli virüse gelen kilit onu açar). */
+  lockStacking?: boolean;
+  /** Üst üste en fazla kilit katmanı (2..10). */
+  lockMaxStack?: number;
 
   bombEnabled?: boolean;
   bombThreshold?: number;
@@ -147,6 +153,9 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   diagMatches: false,
   counterEnabled: true,
   powerupsEnabled: true,
+  powerupFreq: 5,
+  lockStacking: false,
+  lockMaxStack: 3,
   aoeEnabled: false,
   aoeThreshold: 5,
   missPenaltyEnabled: false,

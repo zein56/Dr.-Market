@@ -42,6 +42,13 @@ import {
   isStone,
   kindOf,
   colorOf,
+  getLockCount,
+  isVirus,
+  MAX_LOCK_LEVEL,
+  applyClear,
+  findMatches,
+  normalizePowerFreq,
+  powerFreqParams,
 } from '../src/index';
 
 let pass = 0;
@@ -604,6 +611,114 @@ console.log('\nRastgele oyunlar (fuzz)');
   let same = true;
   for (const seed of [7, 21, 88]) if (sig(play(seed, 3000).g) !== sig(play(seed, 3000).g)) same = false;
   check('güçlendiricili oyun aynı girdiyle birebir aynı sonuçlanır', same);
+}
+
+// --- Kilit yığınlama ve güç sıklığı ---
+console.log('\nKilit yığınlama');
+{
+  const mk = (extra: any = {}, viruses = 1) => {
+    const g = createGame({ seed: 11, level: 1, speed: 'low' as const, colors: 3, ...extra });
+    g.board.fill(0);
+    for (let i = 0; i < viruses; i++) g.board[(15 - i) * COLS + 7] = cell(KIND_VIRUS, i % 3);
+    return g;
+  };
+  const lockAt = (g: any) => g.board[15 * COLS + 7];
+
+  { // varsayılan: eski davranış (zaten kilitli virüse gelen kilit onu açar)
+    const g = mk();
+    queueGarbage(g, { normal: 0, stone: 0, lock: 1 }, 1);
+    check('varsayılan: ilk kilit eklenir', getLockCount(lockAt(g)) === 1);
+    queueGarbage(g, { normal: 0, stone: 0, lock: 1 }, 2);
+    check('varsayılan: kilitli virüse gelen kilit onu açar (eski davranış korunur)', getLockCount(lockAt(g)) === 0);
+    queueGarbage(g, { normal: 0, stone: 0, lock: 1 }, 3);
+    check('varsayılan: tekrar kilitlenir', getLockCount(lockAt(g)) === 1);
+  }
+  { // yığınlama açık
+    const g = mk({ lockStacking: true, lockMaxStack: 3 });
+    let events = 0;
+    for (let i = 0; i < 5; i++) {
+      queueGarbage(g, { normal: 0, stone: 0, lock: 1 }, 10 + i);
+      events += g.events.filter((e: string) => e.startsWith('lock_applied:')).length;
+      g.events.length = 0;
+    }
+    check('yığınlama: üst üste eklenir ve sınırda durur (max 3)', getLockCount(lockAt(g)) === 3, `seviye=${getLockCount(lockAt(g))}`);
+    check('yığınlama: sınır dolunca olay üretmez (3 olay)', events === 3, `olay=${events}`);
+    check('yığınlama: virüs rengi korunur', colorOf(lockAt(g)) === 0 && isVirus(lockAt(g)));
+  }
+  { // birden çok virüs: yük, sınırı dolmamış virüslere dağılır
+    const g = mk({ lockStacking: true, lockMaxStack: 3 }, 2);
+    queueGarbage(g, { normal: 0, stone: 0, lock: 10 }, 77);
+    const levels = [g.board[15 * COLS + 7], g.board[14 * COLS + 7]].map(getLockCount);
+    check('yığınlama: iki virüs, 10 kilit gelince ikisi de sınıra (3+3) ulaşır', levels[0] === 3 && levels[1] === 3, JSON.stringify(levels));
+  }
+  { // sınır 10
+    const g = mk({ lockStacking: true, lockMaxStack: 99 });
+    queueGarbage(g, { normal: 0, stone: 0, lock: 50 }, 5);
+    check('yığınlama: en yüksek seviye ' + MAX_LOCK_LEVEL + ' ile sınırlıdır', getLockCount(lockAt(g)) === MAX_LOCK_LEVEL);
+  }
+  { // eşleşme bir katman kırar; virüs ancak kilitsizken temizlenir
+    const g = createGame({ seed: 1, level: 1, speed: 'low' as const, colors: 3 });
+    g.board.fill(0);
+    const virus = addLock(addLock(cell(KIND_VIRUS, 0)));
+    const base = 15 * COLS;
+    g.board[base] = virus;
+    for (let x = 1; x <= 3; x++) g.board[base + x] = cell(KIND_SINGLE, 0);
+    let m = findMatches(g.board, g.cfg);
+    check('kilitli virüs eşleşmeye katılır ama temizlenmiş sayılmaz', m.cleared.includes(base) && m.virusesCleared === 0);
+    applyClear(g.board, m.cleared);
+    check('1. eşleşme: 2 katmandan 1 katmana düşer, virüs yerinde', getLockCount(g.board[base]) === 1 && isVirus(g.board[base]));
+    for (let x = 1; x <= 3; x++) g.board[base + x] = cell(KIND_SINGLE, 0);
+    m = findMatches(g.board, g.cfg);
+    applyClear(g.board, m.cleared);
+    check('2. eşleşme: kilit tamamen kalkar, virüs hâlâ yerinde', getLockCount(g.board[base]) === 0 && isVirus(g.board[base]));
+    for (let x = 1; x <= 3; x++) g.board[base + x] = cell(KIND_SINGLE, 0);
+    m = findMatches(g.board, g.cfg);
+    check('3. eşleşme: kilitsiz virüs artık temizlenir', m.virusesCleared === 1);
+  }
+}
+
+console.log('\nGüçlendirici sıklığı');
+{
+  check('bozuk seviye 1..10 aralığına oturur', normalizePowerFreq(NaN) === 5 && normalizePowerFreq(undefined) === 5 && normalizePowerFreq(0) === 1 && normalizePowerFreq(99) === 10 && normalizePowerFreq(3.4) === 3);
+  let mono = true;
+  for (let f = 2; f <= 10; f++) {
+    const a = powerFreqParams(f - 1), b = powerFreqParams(f);
+    if (!(b.gap <= a.gap && b.chance >= a.chance)) mono = false;
+  }
+  check('seviye arttıkça bekleme azalır, olasılık artar', mono);
+
+  const count = (powerupFreq: number, n = 400) => {
+    const g = createGame({ seed: 321, level: 1, speed: 'low' as const, colors: 3, powerupsEnabled: true, powerupFreq });
+    g.virusesLeft = 999;
+    const idx: number[] = [];
+    let spawns = 0;
+    for (let i = 0; i < 400000 && spawns < n; i++) {
+      step(g, g.phase === Phase.Falling && g.capsule ? [Input.HardDrop] : []);
+      if (g.events.includes('spawn') && g.capsule) {
+        if (g.capsule.power) idx.push(spawns);
+        spawns++;
+        g.board.fill(0);
+      }
+    }
+    let minGap = Infinity;
+    for (let i = 1; i < idx.length; i++) minGap = Math.min(minGap, idx[i] - idx[i - 1]);
+    return { n: idx.length, minGap };
+  };
+  const f1 = count(1), f5 = count(5), f10 = count(10);
+  check('sıklık 1 < 5 < 10 (400 kapsülde güç sayısı)', f1.n < f5.n && f5.n < f10.n, `${f1.n} / ${f5.n} / ${f10.n}`);
+  check('seviye 1 çok seyrek (≤ 25 güç / 400 kapsül), seviye 10 çok sık (≥ 60)', f1.n <= 25 && f10.n >= 60, `${f1.n} / ${f10.n}`);
+  check('sıklık 1: iki güç arası en az 16 kapsül', f1.minGap >= 16, `minGap=${f1.minGap}`);
+  check('sıklık 10: iki güç arası en az 2 kapsül', f10.minGap >= 2, `minGap=${f10.minGap}`);
+  check('sıklık 10 hâlâ rastgele (aralıklar sabit değil)', (() => {
+    const g = createGame({ seed: 5, level: 1, speed: 'low' as const, colors: 3, powerupsEnabled: true, powerupFreq: 10 });
+    g.virusesLeft = 999;
+    const gaps: number[] = []; let last = -1, spawns = 0;
+    for (let i = 0; i < 400000 && spawns < 300; i++) {
+      step(g, g.phase === Phase.Falling && g.capsule ? [Input.HardDrop] : []);
+      if (g.events.includes('spawn') && g.capsule) { if (g.capsule.power) { if (last >= 0) gaps.push(spawns - last); last = spawns; } spawns++; g.board.fill(0); }
+    }
+    return new Set(gaps).size >= 3;
+  })());
 }
 
 console.log(`\n${pass} geçti, ${fail} başarısız\n`);
