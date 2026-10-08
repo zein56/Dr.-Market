@@ -72,7 +72,7 @@ function loadSavedConfig() {
   return {};
 }
 
-export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) => void }) {
+export default function LocalSetup({ onStart, onBack }: { onStart: (cfg: LocalConfig) => void; onBack: () => void }) {
   const saved = loadSavedConfig();
 
   const [p1Name, setP1Name] = useState(saved.p1Name ?? 'Oyuncu 1');
@@ -786,9 +786,14 @@ export default function LocalSetup({ onStart }: { onStart: (cfg: LocalConfig) =>
         🎮 Oyun Kollarını Ayarla
       </button>
 
-      <button className="btn primary wide local-start-btn" onClick={start}>
-        Oyunu Başlat
-      </button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button className="btn ghost" onClick={() => { sfx('click'); onBack(); }} style={{ flex: 1 }}>
+          Geri Dön
+        </button>
+        <button className="btn primary local-start-btn" onClick={start} style={{ flex: 2 }}>
+          Oyunu Başlat
+        </button>
+      </div>
 
       {showModal && (
         <div className="overlay">

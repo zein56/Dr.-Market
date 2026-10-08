@@ -9,19 +9,18 @@ export default function Lobby({
   onFlash,
   onLocalGame,
   landscapeMode,
-  onToggleLandscape,
   onEditMobileControls,
 }: {
   rooms: RoomPublic[];
   onFlash: (m: string) => void;
   onLocalGame: () => void;
   landscapeMode?: boolean;
-  onToggleLandscape?: () => void;
   onEditMobileControls?: () => void;
 }) {
   const [code, setCode] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [roomName, setRoomName] = useState('');
+  const isTouch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
   useEffect(() => {
     socket.emit('room_list', {});
@@ -63,15 +62,13 @@ export default function Lobby({
         <button className="btn primary" onClick={() => setShowCreate((v) => !v)}>
           {showCreate ? 'Vazgeç' : 'Oda kur'}
         </button>
-        <button className="btn local-2p-btn" onClick={onLocalGame}>
-          🎮 Yerel 2P
-        </button>
-        {onToggleLandscape && (
-          <button className={`btn ${landscapeMode ? 'primary' : 'ghost'}`} onClick={onToggleLandscape}>
-            📱 Yatay Mod: {landscapeMode ? 'AÇIK' : 'KAPALI'}
+        {!isTouch && (
+          <button className="btn local-2p-btn" onClick={onLocalGame}>
+            🎮 Yerel 2P
           </button>
         )}
-        {landscapeMode && onEditMobileControls && (
+
+        {isTouch && onEditMobileControls && (
           <button className="btn outline" onClick={onEditMobileControls}>
             🕹️ Butonları Yerleştir
           </button>

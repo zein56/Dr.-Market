@@ -705,8 +705,28 @@ export default function Game({
             ? 'Butonlarla oyna.'
             : 'Kaydır: yana taşı · Dokun: çevir · Aşağı fırlat: bırak'}
         </span>
-        <button className="btn small ghost" onClick={onLeave}>
-          Odaya dön
+        {isHost && !outcome && (
+          <button className="btn small outline" onClick={togglePause} style={{ marginRight: 8 }}>
+            ⏸️ Durdur
+          </button>
+        )}
+        <button
+          className="btn small ghost"
+          onClick={() => {
+            if (!finishedRef.current && stateRef.current) {
+              finishedRef.current = true;
+              socket.emit('finished', {
+                frame: stateRef.current.frame,
+                won: false,
+                score: stateRef.current.score,
+                viruses: stateRef.current.virusesLeft,
+                maxChain: stateRef.current.maxChain,
+              });
+            }
+            onLeave();
+          }}
+        >
+          {outcome ? 'Odaya dön' : 'Ayrıl (Pes et)'}
         </button>
       </div>
     </div >

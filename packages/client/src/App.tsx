@@ -52,13 +52,56 @@ export default function App() {
   const [music, setMusic] = useState(true);
   const [sound, setSound] = useState(true);
   const [localConfig, setLocalConfig] = useState<LocalConfig | null>(null);
-  const [landscapeMode, setLandscapeMode] = useState(() => localStorage.getItem('pill.landscapeMode') === 'true');
+  const [landscapeMode, setLandscapeMode] = useState(() => typeof window !== 'undefined' ? window.matchMedia('(orientation: landscape)').matches : false);
   const [topbarVisible, setTopbarVisible] = useState(true);
+
+  useEffect(() => {
+    const mql = window.matchMedia('(orientation: landscape)');
+    const onChange = (e: MediaQueryListEvent) => {
+      setLandscapeMode(e.matches);
+      if (e.matches) {
+        setTopbarVisible(false);
+      } else {
+        setTopbarVisible(true);
+      }
+    };
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange);
+    } else {
+      mql.addListener(onChange);
+    }
+    return () => {
+      if (mql.removeEventListener) {
+        mql.removeEventListener('change', onChange);
+      } else {
+        mql.removeListener(onChange);
+      }
+    };
+  }, []);
   // sayfa yenilenince: daha önce bir oturum varsa, isim yeniden yazdırmadan
   // sessizce bağlanmayı dene. Sunucu ulaşılamazsa birkaç saniye sonra pes edip
   // normal giriş formunu göster.
   const [autoConnecting, setAutoConnecting] = useState(() => !!localStorage.getItem('pill.name'));
   const toastTimer = useRef<number | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
 
   const flash = (m: string) => {
     setToast(m);
@@ -170,20 +213,7 @@ export default function App() {
     setSound(v);
     setSfxEnabled(v);
   };
-  const toggleLandscape = () => {
-    sfx('click');
-    const v = !landscapeMode;
-    setLandscapeMode(v);
-    localStorage.setItem('pill.landscapeMode', v ? 'true' : 'false');
-    if (v) {
-      // Tam ekran iste
-      document.documentElement.requestFullscreen?.().catch(() => {});
-      setTopbarVisible(false);
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-      setTopbarVisible(true);
-    }
-  };
+
 
   const isInGame = screen === 'game' || screen === 'localgame';
   const hideTopbar = landscapeMode && isInGame && !topbarVisible;
@@ -224,6 +254,19 @@ export default function App() {
       {toast && <div className="toast">{toast}</div>}
 
       <main className="main">
+        {installPrompt && (screen === 'name' || screen === 'lobby') && (
+          <div className="install-banner" style={{ background: 'var(--blue)', color: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img src="/logo.png" alt="Prof. Miro" style={{ width: '40px', height: '40px', borderRadius: '8px' }} />
+              <div>
+                <h4 style={{ margin: 0, fontSize: '15px' }}>Prof. Miro</h4>
+                <p style={{ margin: 0, fontSize: '12px', opacity: 0.9 }}>Oyunu cihazına indir ve hemen oyna!</p>
+              </div>
+            </div>
+            <button className="btn small" onClick={handleInstall} style={{ background: '#fff', color: 'var(--blue)', fontWeight: 'bold' }}>İndir</button>
+          </div>
+        )}
+
         {screen === 'name' && autoConnecting && (
           <section className="enter">
             <p className="reconnecting">
@@ -274,7 +317,6 @@ export default function App() {
             onFlash={flash} 
             onLocalGame={() => setScreen('localsetup')} 
             landscapeMode={landscapeMode}
-            onToggleLandscape={toggleLandscape}
             onEditMobileControls={() => setScreen('mcedit')}
           />
         )}
@@ -285,6 +327,7 @@ export default function App() {
               setLocalConfig(cfg);
               setScreen('localgame');
             }}
+            onBack={() => setScreen('lobby')}
           />
         )}
 

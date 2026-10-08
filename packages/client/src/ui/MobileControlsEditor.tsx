@@ -20,27 +20,42 @@ const defaultBtnSize = 90;
 
 export default function MobileControlsEditor({ onExit }: { onExit: () => void }) {
   const [layout, setLayout] = useState<Layout>(getSavedLayout());
-  const [dragging, setDragging] = useState<string | null>(null);
+  const [activeDrags, setActiveDrags] = useState<Record<number, string>>({});
 
   const startDrag = (id: string, e: React.PointerEvent) => {
     e.preventDefault();
-    setDragging(id);
+    e.stopPropagation();
+    try {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+    setActiveDrags(prev => ({ ...prev, [e.pointerId]: id }));
     sfx('click');
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
+    const id = activeDrags[e.pointerId];
+    if (!id) return;
     setLayout(prev => ({
       ...prev,
-      [dragging]: {
+      [id]: {
         x: e.clientX - defaultBtnSize / 2,
         y: e.clientY - defaultBtnSize / 2,
       },
     }));
   };
 
-  const onPointerUp = () => {
-    if (dragging) setDragging(null);
+  const onPointerUp = (e: React.PointerEvent) => {
+    const id = activeDrags[e.pointerId];
+    if (id) {
+      setActiveDrags(prev => {
+        const next = { ...prev };
+        delete next[e.pointerId];
+        return next;
+      });
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
   };
 
   const onSave = () => {
@@ -57,20 +72,25 @@ export default function MobileControlsEditor({ onExit }: { onExit: () => void })
 
   const renderBtn = (id: string, text: string, defaultClass: string, isSmall?: boolean) => {
     const pos = layout[id];
+    const isFixed = !!pos;
     let style: React.CSSProperties = {};
     if (pos) {
-      style = { position: 'fixed', left: pos.x, top: pos.y, margin: 0, bottom: 'auto', right: 'auto' };
+      style = { position: 'fixed', left: pos.x, top: pos.y, margin: 0, bottom: 'auto', right: 'auto', zIndex: 100 };
     }
 
     return (
-      <button
-        key={id}
-        className={`mc-btn ${defaultClass}`}
-        style={style}
-        onPointerDown={(e) => startDrag(id, e)}
-      >
-        {text}
-      </button>
+      <React.Fragment key={id}>
+        {isFixed && (
+          <div className={`mc-btn ${defaultClass}`} style={{ visibility: 'hidden', pointerEvents: 'none' }}>{text}</div>
+        )}
+        <button
+          className={`mc-btn ${defaultClass}`}
+          style={style}
+          onPointerDown={(e) => startDrag(id, e)}
+        >
+          {text}
+        </button>
+      </React.Fragment>
     );
   };
 
